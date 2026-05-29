@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BASE AI CHAT</title>
 
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
+
   <style>
     body {
       font-family: Arial;
@@ -83,6 +85,13 @@
               params: [accounts[0], "latest"],
             });
 
+            // ENS取得
+const provider =
+  new ethers.providers.Web3Provider(window.ethereum);
+
+const ensName =
+  await provider.lookupAddress(accounts[0]);
+
           // 16進数 → ETH変換
           const ethBalance =
             (parseInt(balance, 16) / 1e18).toFixed(4);
@@ -93,6 +102,10 @@
             Connected:<br>
             ${accounts[0]}
             <br><br>
+
+ENS:<br>
+  ${ensName || "No ENS"}
+  <br><br>
 
             Base ETH Balance:<br>
             ${ethBalance} ETH
