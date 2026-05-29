@@ -1,10 +1,11 @@
-```html
 <!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BASE AI CHAT</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
 
   <style>
     body {
@@ -50,16 +51,11 @@
 
   <p id="walletAddress"></p>
 
-  <textarea
-    id="userInput"
-    placeholder="Type your message..."
-  ></textarea>
+  <textarea id="userInput" placeholder="Type your message..."></textarea>
 
   <br />
 
-  <button onclick="sendMessage()">
-    Send
-  </button>
+  <button onclick="sendMessage()">Send</button>
 
   <div id="response"></div>
 
@@ -67,54 +63,79 @@
 
     async function connectWallet() {
 
-      if (window.ethereum) {
+      if (!window.ethereum) {
+        alert("Coinbase Wallet not found");
+        return;
+      }
 
-        try {
+      try {
 
-          // ウォレット接続
-          const accounts =
-            await window.ethereum.request({
-              method: "eth_requestAccounts",
-            });
-
-          // Base Mainnetへ切替
+        // ① ウォレット接続
+        const accounts =
           await window.ethereum.request({
-            method: "wallet_switchEthereumChain",
-            params: [{ chainId: "0x2105" }],
+            method: "eth_requestAccounts",
           });
 
-          // Base ETH残高取得
-          const balance =
-            await window.ethereum.request({
-              method: "eth_getBalance",
-              params: [accounts[0], "latest"],
-            });
+        // ② Baseへ切替
+        await window.ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: "0x2105" }],
+        });
 
-          // 16進数 → ETH変換
-          const ethBalance =
-            (parseInt(balance, 16) / 1e18).toFixed(4);
+        // ③ ETH残高取得
+        const balance =
+          await window.ethereum.request({
+            method: "eth_getBalance",
+            params: [accounts[0], "latest"],
+          });
 
-          // 表示
-          document.getElementById("walletAddress").innerHTML =
-            `
-            Connected:<br>
-            ${accounts[0]}
-            <br><br>
+        // ④ ETH変換
+        const ethBalance =
+          (parseInt(balance, 16) / 1e18).toFixed(4);
 
-            Base ETH Balance:<br>
-            ${ethBalance} ETH
-            `;
+        // ⑤ USDC取得準備
+        const provider =
+          new ethers.providers.Web3Provider(window.ethereum);
 
-        } catch (error) {
+        const usdcAddress =
+          "0x833589fCD6EDB6E08f4c7C32D4f71b54bdA02913";
 
-          console.error(error);
+        const abi = [
+          "function balanceOf(address owner) view returns (uint256)",
+          "function decimals() view returns (uint8)"
+        ];
 
-        }
+        const usdcContract =
+          new ethers.Contract(usdcAddress, abi, provider);
 
-      } else {
+        // ⑥ USDC残高取得
+        const rawUsdcBalance =
+          await usdcContract.balanceOf(accounts[0]);
 
-        alert("Coinbase Wallet not found");
+        const decimals =
+          await usdcContract.decimals();
 
+        const usdcBalance =
+          (rawUsdcBalance / 10 ** decimals).toFixed(2);
+
+        // ⑦ 表示
+        document.getElementById("walletAddress").innerHTML =
+          `
+          Connected:<br>
+          ${accounts[0]}
+          <br><br>
+
+          Base ETH Balance:<br>
+          ${ethBalance} ETH
+
+          <br><br>
+
+          USDC Balance:<br>
+          ${usdcBalance} USDC
+          `;
+
+      } catch (error) {
+        console.error(error);
       }
 
     }
@@ -149,4 +170,3 @@
 
 </body>
 </html>
-```
