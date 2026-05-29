@@ -85,7 +85,7 @@
 
           // 16進数 → ETH変換
           const ethBalance =
-            parseInt(balance, 16) / 1e18;
+            (parseInt(balance, 16) / 1e18).toFixed(4);
 
           // 表示
           document.getElementById("walletAddress").innerHTML =
