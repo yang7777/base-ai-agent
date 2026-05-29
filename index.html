@@ -93,32 +93,42 @@
         const ethBalance =
           (parseInt(balance, 16) / 1e18).toFixed(4);
 
-        // ⑤ USDC取得準備
-        const provider =
-          new ethers.providers.Web3Provider(window.ethereum);
+        // =========================
+        // USDC（安全版）
+        // =========================
+        let usdcBalance = "0.00";
 
-        const usdcAddress =
-          "0x833589fCD6EDB6E08f4c7C32D4f71b54bdA02913";
+        try {
 
-        const abi = [
-          "function balanceOf(address owner) view returns (uint256)",
-          "function decimals() view returns (uint8)"
-        ];
+          const provider =
+            new ethers.providers.Web3Provider(window.ethereum);
 
-        const usdcContract =
-          new ethers.Contract(usdcAddress, abi, provider);
+          const usdcAddress =
+            "0x833589fCD6EDB6E08f4c7C32D4f71b54bdA02913";
 
-        // ⑥ USDC残高取得
-        const rawUsdcBalance =
-          await usdcContract.balanceOf(accounts[0]);
+          const abi = [
+            "function balanceOf(address owner) view returns (uint256)",
+            "function decimals() view returns (uint8)"
+          ];
 
-        const decimals =
-          await usdcContract.decimals();
+          const usdcContract =
+            new ethers.Contract(usdcAddress, abi, provider);
 
-        const usdcBalance =
-          (rawUsdcBalance / 10 ** decimals).toFixed(2);
+          const rawUsdcBalance =
+            await usdcContract.balanceOf(accounts[0]);
 
-        // ⑦ 表示
+          const decimals =
+            await usdcContract.decimals();
+
+          usdcBalance =
+            (rawUsdcBalance / 10 ** decimals).toFixed(2);
+
+        } catch (e) {
+          console.log("USDC error:", e);
+        }
+        // =========================
+
+        // ⑤ 表示
         document.getElementById("walletAddress").innerHTML =
           `
           Connected:<br>
