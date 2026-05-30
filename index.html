@@ -61,71 +61,98 @@
 
   <script>
 
-    async function connectWallet() {
+async function connectWallet() {
+  try {
+    if (!window.ethereum) {
+      alert("No Ethereum wallet detected (install Coinbase / Rabby / MetaMask)");
+      return;
+    }
 
-      if (!window.ethereum) {
-        alert("Coinbase Wallet not found");
-        return;
-      }
+    const provider = window.ethereum;
 
-      try {
+    // ① 接続
+    const accounts = await provider.request({
+      method: "eth_requestAccounts",
+    });
 
-        // ① ウォレット接続
-        const accounts =
-          await window.ethereum.request({
-            method: "eth_requestAccounts",
-          });
+    // ② Baseチェーンへ切替
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: "0x2105" }],
+    });
 
-        // ② Baseへ切替
-        await window.ethereum.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: "0x2105" }],
-        });
+    // ③ ウォレット判別
+    let walletName = "Unknown Wallet";
 
-        // ③ ETH残高取得
-        const balance =
-          await window.ethereum.request({
-            method: "eth_getBalance",
-            params: [accounts[0], "latest"],
-          });
+    if (provider.isCoinbaseWallet) {
+      walletName = "Coinbase Wallet";
+    } else if (provider.isRabby) {
+      walletName = "Rabby Wallet";
+    } else if (provider.isMetaMask) {
+      walletName = "MetaMask";
+    }
 
-        // ④ ETH変換
-        const ethBalance =
-          (parseInt(balance, 16) / 1e18).toFixed(4);
+    // ④ ETH残高
+    const balance = await provider.request({
+      method: "eth_getBalance",
+      params: [accounts[0], "latest"],
+    });
 
-        // =========================
-        // USDC（安全版）
-        // =========================
-        let usdcBalance = "0.00";
+    const ethBalance = (parseInt(balance, 16) / 1e18).toFixed(4);
 
-        try {
+    // ⑤ USDC残高
+    let usdcBalance = "0.00";
 
-          const provider =
-            new ethers.providers.Web3Provider(window.ethereum);
+    try {
+      const ethersProvider = new ethers.providers.Web3Provider(provider);
 
-          const usdcAddress =
-            "0x833589fCD6EDB6E08f4c7C32D4f71b54bdA02913";
+      const usdcAddress =
+        "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
-          const abi = [
-            "function balanceOf(address owner) view returns (uint256)",
-            "function decimals() view returns (uint8)"
-          ];
+      const abi = [
+        "function balanceOf(address owner) view returns (uint256)",
+        "function decimals() view returns (uint8)"
+      ];
 
-          const usdcContract =
-            new ethers.Contract(usdcAddress, abi, provider);
+      const usdcContract = new ethers.Contract(
+        usdcAddress,
+        abi,
+        ethersProvider
+      );
 
-          const rawUsdcBalance =
-            await usdcContract.balanceOf(accounts[0]);
+      const raw = await usdcContract.balanceOf(accounts[0]);
+      const decimals = await usdcContract.decimals();
 
-          const decimals =
-            await usdcContract.decimals();
+      usdcBalance = (raw / 10 ** decimals).toFixed(2);
 
-          usdcBalance =
-            (rawUsdcBalance / 10 ** decimals).toFixed(2);
+    } catch (e) {
+      console.log("USDC error:", e);
+    }
 
-        } catch (e) {
-          console.log("USDC error:", e);
-        }
+    // ⑥ 表示
+    document.getElementById("walletAddress").innerHTML = `
+      Wallet: ${walletName}
+      <br><br>
+
+      Address:<br>
+      ${accounts[0]}
+      <br><br>
+
+      Base ETH Balance:<br>
+      ${ethBalance} ETH
+      <br><br>
+
+      USDC Balance:<br>
+      ${usdcBalance} USDC
+    `;
+
+  } catch (error) {
+    console.error(error);
+    alert("Wallet connection failed");
+  }
+}
+    
+
         // =========================
 
         // ⑤ 表示
