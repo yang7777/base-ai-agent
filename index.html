@@ -74,10 +74,13 @@ let provider = null;
 
 async function connectWallet() {
   try {
+
+    console.log("connectWallet start");
+
     provider = window.ethereum;
 
     if (!provider) {
-      alert("Wallet not found (install Coinbase / Rabby / MetaMask)");
+      alert("Wallet not found");
       return;
     }
 
@@ -87,14 +90,16 @@ async function connectWallet() {
 
     currentAccount = accounts[0];
 
-    // 🔥 安全版 chain switch（失敗しても止めない）
+    console.log("account:", currentAccount);
+
+    // 🔥 chain switch（失敗しても止めない）
     try {
       await provider.request({
         method: "wallet_switchEthereumChain",
         params: [{ chainId: "0x2105" }],
       });
     } catch (e) {
-      console.log("chain switch skipped:", e);
+      console.log("chain switch ignored:", e.message || e);
     }
 
     let walletName = "Unknown Wallet";
@@ -130,7 +135,7 @@ async function connectWallet() {
     }
 
     document.getElementById("walletAddress").innerHTML = `
-      Wallet: ${walletName}
+      Wallet Connected
       <br><br>
 
       Address:<br>
@@ -160,8 +165,8 @@ async function connectWallet() {
     `;
 
   } catch (err) {
-    console.error(err);
-    alert("Wallet connection failed");
+    console.error("connectWallet error:", err);
+    alert("Wallet connection failed: " + (err.message || err));
   }
 }
 
@@ -214,7 +219,7 @@ async function sendUSDC() {
     status.innerText = "成功！ TX: " + tx.hash;
 
   } catch (err) {
-    console.error(err);
+    console.error("sendUSDC error:", err);
     document.getElementById("sendStatus").innerText =
       "エラー: " + (err.message || err);
   }
