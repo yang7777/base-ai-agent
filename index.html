@@ -74,12 +74,12 @@ let provider = null;
 
 async function connectWallet() {
   try {
-    if (!window.ethereum) {
-      alert("No wallet detected (install Coinbase / Rabby / MetaMask)");
+    provider = window.ethereum;
+
+    if (!provider) {
+      alert("Wallet not found (install Coinbase / Rabby / MetaMask)");
       return;
     }
-
-    provider = window.ethereum;
 
     const accounts = await provider.request({
       method: "eth_requestAccounts",
@@ -87,12 +87,17 @@ async function connectWallet() {
 
     currentAccount = accounts[0];
 
-    await provider.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: "0x2105" }],
-    });
+    // 🔥 安全版 chain switch（失敗しても止めない）
+    try {
+      await provider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: "0x2105" }],
+      });
+    } catch (e) {
+      console.log("chain switch skipped:", e);
+    }
 
-    let walletName = "Unknown";
+    let walletName = "Unknown Wallet";
 
     if (provider.isCoinbaseWallet) walletName = "Coinbase Wallet";
     else if (provider.isRabby) walletName = "Rabby Wallet";
@@ -106,9 +111,13 @@ async function connectWallet() {
 
     const ethBalance = (parseInt(balance, 16) / 1e18).toFixed(4);
 
-    // USDC残高
+    // USDC
     const ethersProvider = new ethers.providers.Web3Provider(provider);
-    const contract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, ethersProvider);
+    const contract = new ethers.Contract(
+      USDC_ADDRESS,
+      ERC20_ABI,
+      ethersProvider
+    );
 
     let usdcBalance = "0.00";
 
@@ -117,10 +126,9 @@ async function connectWallet() {
       const decimals = await contract.decimals();
       usdcBalance = (raw / 10 ** decimals).toFixed(2);
     } catch (e) {
-      console.log(e);
+      console.log("USDC error:", e);
     }
 
-    // 表示（ここが唯一のUI更新）
     document.getElementById("walletAddress").innerHTML = `
       Wallet: ${walletName}
       <br><br>
@@ -187,7 +195,11 @@ async function sendUSDC() {
     const ethersProvider = new ethers.providers.Web3Provider(window.ethereum);
     const signer = ethersProvider.getSigner();
 
-    const contract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
+    const contract = new ethers.Contract(
+      USDC_ADDRESS,
+      ERC20_ABI,
+      signer
+    );
 
     const value = ethers.utils.parseUnits(amount, 6);
 
