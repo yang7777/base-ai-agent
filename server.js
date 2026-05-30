@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import fetch from "node-fetch";
 
 dotenv.config();
 
@@ -13,6 +14,8 @@ app.post("/chat", async (req, res) => {
   try {
     const userMessage = req.body.message;
 
+    console.log("userMessage:", userMessage);
+
     const response = await fetch(
       "https://api.openai.com/v1/chat/completions",
       {
@@ -22,7 +25,7 @@ app.post("/chat", async (req, res) => {
           Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "gpt-4.1-mini",
+          model: "gpt-4o-mini",
           messages: [
             {
               role: "user",
@@ -35,16 +38,23 @@ app.post("/chat", async (req, res) => {
 
     const data = await response.json();
 
-    console.log(data);
+    console.log("OpenAI response:", data);
+
+    if (!data.choices) {
+      return res.json({
+        reply: "OpenAI error: no response",
+      });
+    }
 
     res.json({
       reply: data.choices[0].message.content,
     });
+
   } catch (error) {
-    console.error(error);
+    console.error("SERVER ERROR:", error);
 
     res.json({
-      reply: "Error connecting to OpenAI API",
+      reply: "Server error occurred",
     });
   }
 });
