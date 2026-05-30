@@ -43,187 +43,135 @@
 
 <body>
 
-  <h1>BASE AI CHAT</h1>
+<h1>BASE AI CHAT</h1>
 
-  <button onclick="connectWallet()">
-    Connect Coinbase Wallet
-  </button>
+<button onclick="connectWallet()">
+  Connect Wallet
+</button>
 
-  <p id="walletAddress"></p>
+<p id="walletAddress"></p>
 
-  <textarea id="userInput" placeholder="Type your message..."></textarea>
+<textarea id="userInput" placeholder="Type your message..."></textarea>
 
-  <br />
+<br />
 
-  <button onclick="sendMessage()">Send</button>
+<button onclick="sendMessage()">Send</button>
 
-  <div id="response"></div>
+<div id="response"></div>
 
-  <script>
+<script>
+
+const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+
+const ERC20_ABI = [
+  "function transfer(address to, uint amount) returns (bool)",
+  "function balanceOf(address owner) view returns (uint256)",
+  "function decimals() view returns (uint8)"
+];
+
+let currentAccount = null;
+let provider = null;
 
 async function connectWallet() {
   try {
     if (!window.ethereum) {
-      alert("No Ethereum wallet detected (install Coinbase / Rabby / MetaMask)");
+      alert("No wallet detected (install Coinbase / Rabby / MetaMask)");
       return;
     }
 
-    const provider = window.ethereum;
+    provider = window.ethereum;
 
-    // ① 接続
     const accounts = await provider.request({
       method: "eth_requestAccounts",
     });
 
-    // ② Baseチェーンへ切替
+    currentAccount = accounts[0];
+
     await provider.request({
       method: "wallet_switchEthereumChain",
       params: [{ chainId: "0x2105" }],
     });
 
-    // ③ ウォレット判別
-    let walletName = "Unknown Wallet";
+    let walletName = "Unknown";
 
-    if (provider.isCoinbaseWallet) {
-      walletName = "Coinbase Wallet";
-    } else if (provider.isRabby) {
-      walletName = "Rabby Wallet";
-    } else if (provider.isMetaMask) {
-      walletName = "MetaMask";
-    }
+    if (provider.isCoinbaseWallet) walletName = "Coinbase Wallet";
+    else if (provider.isRabby) walletName = "Rabby Wallet";
+    else if (provider.isMetaMask) walletName = "MetaMask";
 
-    // ④ ETH残高
+    // ETH残高
     const balance = await provider.request({
       method: "eth_getBalance",
-      params: [accounts[0], "latest"],
+      params: [currentAccount, "latest"],
     });
 
     const ethBalance = (parseInt(balance, 16) / 1e18).toFixed(4);
 
-    // ⑤ USDC残高
+    // USDC残高
+    const ethersProvider = new ethers.providers.Web3Provider(provider);
+    const contract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, ethersProvider);
+
     let usdcBalance = "0.00";
 
     try {
-      const ethersProvider = new ethers.providers.Web3Provider(provider);
-
-      const usdcAddress =
-        "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-
-      const abi = [
-        "function balanceOf(address owner) view returns (uint256)",
-        "function decimals() view returns (uint8)"
-      ];
-
-      const usdcContract = new ethers.Contract(
-        usdcAddress,
-        abi,
-        ethersProvider
-      );
-
-      const raw = await usdcContract.balanceOf(accounts[0]);
-      const decimals = await usdcContract.decimals();
-
+      const raw = await contract.balanceOf(currentAccount);
+      const decimals = await contract.decimals();
       usdcBalance = (raw / 10 ** decimals).toFixed(2);
-
     } catch (e) {
-      console.log("USDC error:", e);
+      console.log(e);
     }
 
-    // ⑥ 表示
+    // 表示（ここが唯一のUI更新）
     document.getElementById("walletAddress").innerHTML = `
       Wallet: ${walletName}
       <br><br>
 
       Address:<br>
-      ${accounts[0]}
+      ${currentAccount}
       <br><br>
 
-      Base ETH Balance:<br>
+      ETH Balance:<br>
       ${ethBalance} ETH
       <br><br>
 
       USDC Balance:<br>
       ${usdcBalance} USDC
+
+      <hr />
+
+      <h3>USDC Send</h3>
+
+      <input id="toAddress" placeholder="送信先アドレス" style="width:100%;" />
+      <br /><br />
+
+      <input id="amount" placeholder="USDC数量" style="width:100%;" />
+      <br /><br />
+
+      <button onclick="sendUSDC()">Send USDC</button>
+
+      <p id="sendStatus"></p>
     `;
 
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
     alert("Wallet connection failed");
   }
 }
-    
 
-        // =========================
+async function sendMessage() {
+  const userInput = document.getElementById("userInput").value;
 
-        // ⑤ 表示
-        document.getElementById("walletAddress").innerHTML =
-          `
-          Connected:<br>
-          ${accounts[0]}
-          <br><br>
+  document.getElementById("response").innerText = "AI thinking...";
 
-          Base ETH Balance:<br>
-          ${ethBalance} ETH
+  const response = await fetch("http://localhost:3001/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: userInput }),
+  });
 
-          <br><br>
+  const data = await response.json();
 
-          USDC Balance:<br>
-          ${usdcBalance} USDC
-
-<hr />
-
-<h3>USDC Send</h3>
-
-<input id="toAddress" placeholder="送信先アドレス" style="width: 100%;" />
-<br /><br />
-
-<input id="amount" placeholder="送金額（USDC）" style="width: 100%;" />
-<br /><br />
-
-<button onclick="sendUSDC()">Send USDC</button>
-
-<p id="sendStatus"></p>
-
-          `;
-
-      } catch (error) {
-        console.error(error);
-      }
-
-    }
-
-    async function sendMessage() {
-
-      const userInput =
-        document.getElementById("userInput").value;
-
-      document.getElementById("response").innerText =
-        "AI thinking...";
-
-      const response =
-        await fetch("http://localhost:3001/chat", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            message: userInput,
-          }),
-        });
-
-      const data = await response.json();
-
-      document.getElementById("response").innerText =
-        data.reply;
-
-    }
-
-    const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-
-const ERC20_ABI = [
-  "function transfer(address to, uint amount) returns (bool)",
-  "function decimals() view returns (uint8)"
-];
+  document.getElementById("response").innerText = data.reply;
+}
 
 async function sendUSDC() {
   try {
@@ -232,22 +180,22 @@ async function sendUSDC() {
     const status = document.getElementById("sendStatus");
 
     if (!to || !amount) {
-      status.innerText = "アドレスと金額を入力してください";
+      status.innerText = "入力してください";
       return;
     }
 
-    const provider = new ethers.providers.Web3Provider(window.ethereum);
-    const signer = provider.getSigner();
+    const ethersProvider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = ethersProvider.getSigner();
 
-    const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
+    const contract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
 
     const value = ethers.utils.parseUnits(amount, 6);
 
     status.innerText = "送信中...";
 
-    const tx = await usdc.transfer(to, value);
+    const tx = await contract.transfer(to, value);
 
-    status.innerText = "TX送信: " + tx.hash;
+    status.innerText = "TX: " + tx.hash;
 
     await tx.wait();
 
@@ -256,11 +204,11 @@ async function sendUSDC() {
   } catch (err) {
     console.error(err);
     document.getElementById("sendStatus").innerText =
-      "エラー: " + (err?.message || err);
+      "エラー: " + (err.message || err);
   }
 }
 
-  </script>
+</script>
 
 </body>
 </html>
