@@ -135,36 +135,39 @@ async function connectWallet() {
     }
 
     document.getElementById("walletAddress").innerHTML = `
-      Wallet Connected
-      <br><br>
+  Wallet Connected
+  <br><br>
 
-      Address:<br>
-      ${currentAccount}
-      <br><br>
+  Address:<br>
+  ${currentAccount}
+  <br><br>
 
-      ETH Balance:<br>
-      ${ethBalance} ETH
-      <br><br>
+  ETH Balance:<br>
+  ${ethBalance} ETH
+  <br><br>
 
-      USDC Balance:<br>
-      ${usdcBalance} USDC
+  USDC Balance:<br>
+<span id="usdcBalance">
+  ${usdcBalance}
+</span> USDC
+  
+    <hr />
 
-      <hr />
+  <h3>USDC Send</h3>
 
-      <h3>USDC Send</h3>
+  <input id="toAddress" placeholder="送信先アドレス" style="width:100%;" />
+  <br /><br />
 
-      <input id="toAddress" placeholder="送信先アドレス" style="width:100%;" />
-      <br /><br />
+  <input id="amount" placeholder="USDC数量" style="width:100%;" />
+  <br /><br />
 
-      <input id="amount" placeholder="USDC数量" style="width:100%;" />
-      <br /><br />
+  <button id="sendBtn" onclick="sendUSDC()">
+    Send USDC
+  </button>
 
-      <button id="sendBtn" onclick="sendUSDC()">
-  Send USDC</button>
-
-      <p id="sendStatus"></p>
-    `;
-
+  <p id="sendStatus"></p>
+`;
+ 
   } catch (err) {
     console.error("connectWallet error:", err);
     alert("Wallet connection failed: " + (err.message || err));
@@ -270,6 +273,8 @@ async function sendUSDC() {
     `;
 
     await tx.wait();
+
+    await refreshUSDCBalance();
 
     status.innerHTML = `
       ✅ 送金成功
