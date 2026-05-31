@@ -143,7 +143,9 @@ async function connectWallet() {
   <br><br>
 
   ETH Balance:<br>
-  ${ethBalance} ETH
+<span id="ethBalance">
+  ${ethBalance}
+</span> ETH
   <br><br>
 
   USDC Balance:<br>
@@ -175,6 +177,39 @@ async function connectWallet() {
 }
 
 async function refreshUSDCBalance() {
+
+async function refreshETHBalance() {
+
+  try {
+
+    const balance =
+      await provider.request({
+        method: "eth_getBalance",
+        params: [currentAccount, "latest"],
+      });
+
+    const ethBalance =
+      (
+        parseInt(balance, 16) / 1e18
+      ).toFixed(4);
+
+    const balanceElement =
+      document.getElementById("ethBalance");
+
+    if (balanceElement) {
+      balanceElement.innerText =
+        ethBalance;
+    }
+
+  } catch (err) {
+
+    console.error(
+      "refreshETHBalance error:",
+      err
+    );
+
+  }
+}
 
   try {
 
@@ -318,10 +353,12 @@ async function sendUSDC() {
 
     await tx.wait();
 
-    await refreshUSDCBalance();
+await refreshUSDCBalance();
+await refreshETHBalance();
 
-    status.innerHTML = `
-      ✅ 送金成功
+status.innerHTML = `
+
+     ✅ 送金成功
       <br><br>
 
       TX Hash
