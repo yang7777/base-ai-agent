@@ -174,6 +174,50 @@ async function connectWallet() {
   }
 }
 
+async function refreshUSDCBalance() {
+
+  try {
+
+    const ethersProvider =
+      new ethers.providers.Web3Provider(window.ethereum);
+
+    const contract = new ethers.Contract(
+      USDC_ADDRESS,
+      ERC20_ABI,
+      ethersProvider
+    );
+
+    const raw =
+      await contract.balanceOf(currentAccount);
+
+    const decimals =
+      await contract.decimals();
+
+    const balance =
+      Number(
+        ethers.utils.formatUnits(
+          raw,
+          decimals
+        )
+      ).toFixed(2);
+
+    const balanceElement =
+      document.getElementById("usdcBalance");
+
+    if (balanceElement) {
+      balanceElement.innerText = balance;
+    }
+
+  } catch (err) {
+
+    console.error(
+      "refreshUSDCBalance error:",
+      err
+    );
+
+  }
+}
+
 async function sendMessage() {
   const userInput = document.getElementById("userInput").value;
 
