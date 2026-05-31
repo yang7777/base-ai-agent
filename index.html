@@ -178,81 +178,90 @@ async function connectWallet() {
 
 async function refreshUSDCBalance() {
 
+try {
+
+
+const ethersProvider =
+  new ethers.providers.Web3Provider(window.ethereum);
+
+const contract = new ethers.Contract(
+  USDC_ADDRESS,
+  ERC20_ABI,
+  ethersProvider
+);
+
+const raw =
+  await contract.balanceOf(currentAccount);
+
+const decimals =
+  await contract.decimals();
+
+const balance =
+  Number(
+    ethers.utils.formatUnits(
+      raw,
+      decimals
+    )
+  ).toFixed(2);
+
+const balanceElement =
+  document.getElementById("usdcBalance");
+
+if (balanceElement) {
+  balanceElement.innerText = balance;
+}
+
+
+} catch (err) {
+
+
+console.error(
+  "refreshUSDCBalance error:",
+  err
+);
+
+
+}
+}
+
 async function refreshETHBalance() {
 
-  try {
+try {
 
-    const balance =
-      await provider.request({
-        method: "eth_getBalance",
-        params: [currentAccount, "latest"],
-      });
 
-    const ethBalance =
-      (
-        parseInt(balance, 16) / 1e18
-      ).toFixed(4);
+const balance =
+  await provider.request({
+    method: "eth_getBalance",
+    params: [currentAccount, "latest"],
+  });
 
-    const balanceElement =
-      document.getElementById("ethBalance");
+const ethBalance =
+  Number(
+    ethers.utils.formatEther(balance)
+  ).toFixed(4);
 
-    if (balanceElement) {
-      balanceElement.innerText =
-        ethBalance;
-    }
+const balanceElement =
+  document.getElementById("ethBalance");
 
-  } catch (err) {
-
-    console.error(
-      "refreshETHBalance error:",
-      err
-    );
-
-  }
+if (balanceElement) {
+  balanceElement.innerText =
+    ethBalance;
 }
 
-  try {
 
-    const ethersProvider =
-      new ethers.providers.Web3Provider(window.ethereum);
+} catch (err) {
 
-    const contract = new ethers.Contract(
-      USDC_ADDRESS,
-      ERC20_ABI,
-      ethersProvider
-    );
 
-    const raw =
-      await contract.balanceOf(currentAccount);
+console.error(
+  "refreshETHBalance error:",
+  err
+);
 
-    const decimals =
-      await contract.decimals();
 
-    const balance =
-      Number(
-        ethers.utils.formatUnits(
-          raw,
-          decimals
-        )
-      ).toFixed(2);
-
-    const balanceElement =
-      document.getElementById("usdcBalance");
-
-    if (balanceElement) {
-      balanceElement.innerText = balance;
-    }
-
-  } catch (err) {
-
-    console.error(
-      "refreshUSDCBalance error:",
-      err
-    );
-
-  }
+}
 }
 
+    
 async function sendMessage() {
   const userInput = document.getElementById("userInput").value;
 
