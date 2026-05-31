@@ -1,410 +1,171 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BASE AI CHAT</title>
-
-  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-
-  <style>
-    body {
-      font-family: Arial;
-      max-width: 700px;
-      margin: 40px auto;
-      padding: 20px;
-    }
-
-    textarea {
-      width: 100%;
-      height: 100px;
-      margin-top: 20px;
-    }
-
-    button {
-      margin-top: 10px;
-      padding: 10px 20px;
-      cursor: pointer;
-    }
-
-    #response {
-      margin-top: 20px;
-      padding: 10px;
-      border: 1px solid #ccc;
-    }
-
-    #walletAddress {
-      margin-top: 10px;
-      color: blue;
-      word-break: break-all;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BASE AI CHAT Complete</title>
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<style>
+body{font-family:Arial;max-width:900px;margin:20px auto;padding:20px}
+input,textarea,button{width:100%;padding:10px;margin-top:8px}
+.card{border:1px solid #ddd;padding:12px;margin-top:12px}
+.small{font-size:12px;word-break:break-all}
+</style>
 </head>
-
 <body>
-
 <h1>BASE AI CHAT</h1>
 
-<button onclick="connectWallet()">
-  Connect Wallet
-</button>
+<button onclick="connectWallet()">Connect Wallet</button>
 
-<p id="walletAddress"></p>
+<div class="card">
+<div id="walletInfo">Not Connected</div>
+</div>
 
-<textarea id="userInput" placeholder="Type your message..."></textarea>
+<div class="card">
+<h3>ETH Send</h3>
+<input id="ethTo" placeholder="Address">
+<input id="ethAmount" placeholder="ETH Amount">
+<button onclick="sendETH()">Send ETH</button>
+</div>
 
-<br />
+<div class="card">
+<h3>USDC Send</h3>
+<input id="usdcTo" placeholder="Address">
+<input id="usdcAmount" placeholder="USDC Amount">
+<button onclick="sendUSDC()">Send USDC</button>
+</div>
 
+<div class="card">
+<h3>Saved Addresses</h3>
+<input id="saveName" placeholder="Name">
+<input id="saveAddress" placeholder="Address">
+<button onclick="saveAddress()">Save Address</button>
+<div id="addressBook"></div>
+</div>
+
+<div class="card">
+<h3>Transaction History</h3>
+<div id="history"></div>
+</div>
+
+<div class="card">
+<h3>AI Chat</h3>
+<textarea id="userInput"></textarea>
 <button onclick="sendMessage()">Send</button>
-
 <div id="response"></div>
+</div>
 
 <script>
-
-const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-
-const ERC20_ABI = [
-  "function transfer(address to, uint amount) returns (bool)",
-  "function balanceOf(address owner) view returns (uint256)",
-  "function decimals() view returns (uint8)"
+const USDC_ADDRESS="0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const ERC20_ABI=[
+"function transfer(address to,uint amount) returns (bool)",
+"function balanceOf(address owner) view returns (uint256)",
+"function decimals() view returns (uint8)"
 ];
 
-let currentAccount = null;
-let provider = null;
+let provider=null;
+let currentAccount=null;
 
-async function connectWallet() {
-  try {
-
-    console.log("connectWallet start");
-
-    provider = window.ethereum;
-
-    if (!provider) {
-      alert("Wallet not found");
-      return;
-    }
-
-    const accounts = await provider.request({
-      method: "eth_requestAccounts",
-    });
-
-    currentAccount = accounts[0];
-
-    console.log("account:", currentAccount);
-
-    // 🔥 chain switch（失敗しても止めない）
-    try {
-      await provider.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: "0x2105" }],
-      });
-    } catch (e) {
-      console.log("chain switch ignored:", e.message || e);
-    }
-
-    let walletName = "Unknown Wallet";
-
-    if (provider.isCoinbaseWallet) walletName = "Coinbase Wallet";
-    else if (provider.isRabby) walletName = "Rabby Wallet";
-    else if (provider.isMetaMask) walletName = "MetaMask";
-
-    // ETH残高
-    const balance = await provider.request({
-      method: "eth_getBalance",
-      params: [currentAccount, "latest"],
-    });
-
-    const ethBalance = (parseInt(balance, 16) / 1e18).toFixed(4);
-
-    // USDC
-    const ethersProvider = new ethers.providers.Web3Provider(provider);
-    const contract = new ethers.Contract(
-      USDC_ADDRESS,
-      ERC20_ABI,
-      ethersProvider
-    );
-
-    let usdcBalance = "0.00";
-
-    try {
-      const raw = await contract.balanceOf(currentAccount);
-      const decimals = await contract.decimals();
-      usdcBalance = (raw / 10 ** decimals).toFixed(2);
-    } catch (e) {
-      console.log("USDC error:", e);
-    }
-
-    document.getElementById("walletAddress").innerHTML = `
-  Wallet Connected
-  <br><br>
-
-  Address:<br>
-  ${currentAccount}
-  <br><br>
-
-  ETH Balance:<br>
-<span id="ethBalance">
-  ${ethBalance}
-</span> ETH
-  <br><br>
-
-  USDC Balance:<br>
-<span id="usdcBalance">
-  ${usdcBalance}
-</span> USDC
-  
-    <hr />
-
-  <h3>USDC Send</h3>
-
-  <input id="toAddress" placeholder="送信先アドレス" style="width:100%;" />
-  <br /><br />
-
-  <input id="amount" placeholder="USDC数量" style="width:100%;" />
-  <br /><br />
-
-  <button id="sendBtn" onclick="sendUSDC()">
-    Send USDC
-  </button>
-
-  <p id="sendStatus"></p>
-`;
- 
-  } catch (err) {
-    console.error("connectWallet error:", err);
-    alert("Wallet connection failed: " + (err.message || err));
-  }
+function loadHistory(){
+ const h=JSON.parse(localStorage.getItem("txHistory")||"[]");
+ document.getElementById("history").innerHTML=h.reverse().map(x=>
+ `<div class='small'>${x.type}: ${x.amount}<br>${x.hash}</div><hr>`
+ ).join("");
 }
 
-async function refreshUSDCBalance() {
-
-try {
-
-
-const ethersProvider =
-  new ethers.providers.Web3Provider(window.ethereum);
-
-const contract = new ethers.Contract(
-  USDC_ADDRESS,
-  ERC20_ABI,
-  ethersProvider
-);
-
-const raw =
-  await contract.balanceOf(currentAccount);
-
-const decimals =
-  await contract.decimals();
-
-const balance =
-  Number(
-    ethers.utils.formatUnits(
-      raw,
-      decimals
-    )
-  ).toFixed(2);
-
-const balanceElement =
-  document.getElementById("usdcBalance");
-
-if (balanceElement) {
-  balanceElement.innerText = balance;
+function saveHistory(item){
+ const h=JSON.parse(localStorage.getItem("txHistory")||"[]");
+ h.push(item);
+ localStorage.setItem("txHistory",JSON.stringify(h));
+ loadHistory();
 }
 
-
-} catch (err) {
-
-
-console.error(
-  "refreshUSDCBalance error:",
-  err
-);
-
-
-}
+function renderAddressBook(){
+ const items=JSON.parse(localStorage.getItem("addressBook")||"[]");
+ document.getElementById("addressBook").innerHTML=items.map((x,i)=>
+ `<div>${x.name} - ${x.address}
+ <button onclick="copyAddress('${x.address}')">Copy</button>
+ </div>`).join("");
 }
 
-async function refreshETHBalance() {
-
-try {
-
-
-const balance =
-  await provider.request({
-    method: "eth_getBalance",
-    params: [currentAccount, "latest"],
-  });
-
-const ethBalance =
-  Number(
-    ethers.utils.formatEther(balance)
-  ).toFixed(4);
-
-const balanceElement =
-  document.getElementById("ethBalance");
-
-if (balanceElement) {
-  balanceElement.innerText =
-    ethBalance;
+function saveAddress(){
+ const name=document.getElementById("saveName").value;
+ const address=document.getElementById("saveAddress").value;
+ const items=JSON.parse(localStorage.getItem("addressBook")||"[]");
+ items.push({name,address});
+ localStorage.setItem("addressBook",JSON.stringify(items));
+ renderAddressBook();
 }
 
-
-} catch (err) {
-
-
-console.error(
-  "refreshETHBalance error:",
-  err
-);
-
-
-}
+function copyAddress(a){
+ navigator.clipboard.writeText(a);
+ alert("Copied");
 }
 
-    
-async function sendMessage() {
-  const userInput = document.getElementById("userInput").value;
+async function connectWallet(){
+ provider=window.ethereum;
+ const accounts=await provider.request({method:"eth_requestAccounts"});
+ currentAccount=accounts[0];
 
-  document.getElementById("response").innerText = "AI thinking...";
+ const balance=await provider.request({
+  method:"eth_getBalance",
+  params:[currentAccount,"latest"]
+ });
 
-  const response = await fetch("http://localhost:3001/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: userInput }),
-  });
+ const eth=Number(ethers.utils.formatEther(balance)).toFixed(4);
 
-  const data = await response.json();
+ const ep=new ethers.providers.Web3Provider(provider);
+ const c=new ethers.Contract(USDC_ADDRESS,ERC20_ABI,ep);
+ const raw=await c.balanceOf(currentAccount);
+ const dec=await c.decimals();
+ const usdc=Number(ethers.utils.formatUnits(raw,dec)).toFixed(2);
 
-  document.getElementById("response").innerText = data.reply;
+ document.getElementById("walletInfo").innerHTML=`
+ Address:<br>${currentAccount}<br><br>
+ ETH: ${eth}<br>
+ USDC: ${usdc}<br>
+ <button onclick="copyAddress('${currentAccount}')">Copy Address</button>`;
 }
 
-async function sendUSDC() {
-  try {
-
-    const to = document.getElementById("toAddress").value.trim();
-    const amount = document.getElementById("amount").value.trim();
-
-    const status = document.getElementById("sendStatus");
-    const sendBtn = document.getElementById("sendBtn");
-
-    // アドレス形式チェック
-    if (!ethers.utils.isAddress(to)) {
-      status.innerText = "有効なアドレスを入力してください";
-      return;
-    }
-
-    // 数量チェック
-    if (!amount || Number(amount) <= 0) {
-      status.innerText = "正しい数量を入力してください";
-      return;
-    }
-
-    const ethersProvider =
-      new ethers.providers.Web3Provider(window.ethereum);
-
-    const signer = ethersProvider.getSigner();
-
-    const contract = new ethers.Contract(
-      USDC_ADDRESS,
-      ERC20_ABI,
-      signer
-    );
-
-    // 残高取得
-    const rawBalance = await contract.balanceOf(currentAccount);
-    const decimals = await contract.decimals();
-
-    const usdcBalance =
-      Number(
-        ethers.utils.formatUnits(
-          rawBalance,
-          decimals
-        )
-      );
-
-    // 残高チェック
-    if (Number(amount) > usdcBalance) {
-      status.innerText = "残高不足です";
-      return;
-    }
-
-    // 確認ダイアログ
-    const confirmed = confirm(
-      `${amount} USDC を送金します。\n\n送信先:\n${to}`
-    );
-
-    if (!confirmed) {
-      status.innerText = "キャンセルしました";
-      return;
-    }
-
-    const value = ethers.utils.parseUnits(amount, 6);
-
-    sendBtn.disabled = true;
-    sendBtn.innerText = "Sending...";
-
-    status.innerText = "ウォレット承認待ち...";
-
-    const tx = await contract.transfer(
-      to,
-      value
-    );
-
-    status.innerHTML = `
-      トランザクション送信済み
-      <br><br>
-
-      <a href="https://basescan.org/tx/${tx.hash}"
-         target="_blank">
-         Basescanで確認
-      </a>
-    `;
-
-    await tx.wait();
-
-await refreshUSDCBalance();
-await refreshETHBalance();
-
-status.innerHTML = `
-
-     ✅ 送金成功
-      <br><br>
-
-      TX Hash
-      <br>
-      ${tx.hash}
-      <br><br>
-
-      <a href="https://basescan.org/tx/${tx.hash}"
-         target="_blank">
-         Basescanで確認
-      </a>
-    `;
-
-  } catch (err) {
-
-    console.error(err);
-
-    document.getElementById("sendStatus").innerText =
-      "エラー: " +
-      (err.reason ||
-       err.message ||
-       "Unknown Error");
-
-  } finally {
-
-    const sendBtn =
-      document.getElementById("sendBtn");
-
-    if (sendBtn) {
-      sendBtn.disabled = false;
-      sendBtn.innerText = "Send USDC";
-    }
-  }
+async function sendETH(){
+ const ep=new ethers.providers.Web3Provider(window.ethereum);
+ const signer=ep.getSigner();
+ const tx=await signer.sendTransaction({
+  to:document.getElementById("ethTo").value,
+  value:ethers.utils.parseEther(document.getElementById("ethAmount").value)
+ });
+ await tx.wait();
+ saveHistory({type:"ETH",amount:document.getElementById("ethAmount").value,hash:tx.hash});
 }
-  
 
+async function sendUSDC(){
+ const ep=new ethers.providers.Web3Provider(window.ethereum);
+ const signer=ep.getSigner();
+ const c=new ethers.Contract(USDC_ADDRESS,ERC20_ABI,signer);
+ const tx=await c.transfer(
+  document.getElementById("usdcTo").value,
+  ethers.utils.parseUnits(document.getElementById("usdcAmount").value,6)
+ );
+ await tx.wait();
+ saveHistory({type:"USDC",amount:document.getElementById("usdcAmount").value,hash:tx.hash});
+}
+
+async function sendMessage(){
+ try{
+ const response=await fetch("http://localhost:3001/chat",{
+ method:"POST",
+ headers:{"Content-Type":"application/json"},
+ body:JSON.stringify({message:document.getElementById("userInput").value})
+ });
+ const data=await response.json();
+ document.getElementById("response").innerText=data.reply;
+ }catch(e){
+ document.getElementById("response").innerText=e.message;
+ }
+}
+
+loadHistory();
+renderAddressBook();
 </script>
-
 </body>
 </html>
