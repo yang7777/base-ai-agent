@@ -159,7 +159,8 @@ async function connectWallet() {
       <input id="amount" placeholder="USDC数量" style="width:100%;" />
       <br /><br />
 
-      <button onclick="sendUSDC()">Send USDC</button>
+      <button id="sendBtn" onclick="sendUSDC()">
+  Send USDC</button>
 
       <p id="sendStatus"></p>
     `;
@@ -188,16 +189,28 @@ async function sendMessage() {
 
 async function sendUSDC() {
   try {
-    const to = document.getElementById("toAddress").value;
-    const amount = document.getElementById("amount").value;
-    const status = document.getElementById("sendStatus");
 
-    if (!to || !amount) {
-      status.innerText = "入力してください";
+    const to = document.getElementById("toAddress").value.trim();
+    const amount = document.getElementById("amount").value.trim();
+
+    const status = document.getElementById("sendStatus");
+    const sendBtn = document.getElementById("sendBtn");
+
+    // アドレス形式チェック
+    if (!ethers.utils.isAddress(to)) {
+      status.innerText = "有効なアドレスを入力してください";
       return;
     }
 
-    const ethersProvider = new ethers.providers.Web3Provider(window.ethereum);
+    // 数量チェック
+    if (!amount || Number(amount) <= 0) {
+      status.innerText = "正しい数量を入力してください";
+      return;
+    }
+
+    const ethersProvider =
+      new ethers.providers.Web3Provider(window.ethereum);
+
     const signer = ethersProvider.getSigner();
 
     const contract = new ethers.Contract(
@@ -206,24 +219,95 @@ async function sendUSDC() {
       signer
     );
 
+    // 残高取得
+    const rawBalance = await contract.balanceOf(currentAccount);
+    const decimals = await contract.decimals();
+
+    const usdcBalance =
+      Number(
+        ethers.utils.formatUnits(
+          rawBalance,
+          decimals
+        )
+      );
+
+    // 残高チェック
+    if (Number(amount) > usdcBalance) {
+      status.innerText = "残高不足です";
+      return;
+    }
+
+    // 確認ダイアログ
+    const confirmed = confirm(
+      `${amount} USDC を送金します。\n\n送信先:\n${to}`
+    );
+
+    if (!confirmed) {
+      status.innerText = "キャンセルしました";
+      return;
+    }
+
     const value = ethers.utils.parseUnits(amount, 6);
 
-    status.innerText = "送信中...";
+    sendBtn.disabled = true;
+    sendBtn.innerText = "Sending...";
 
-    const tx = await contract.transfer(to, value);
+    status.innerText = "ウォレット承認待ち...";
 
-    status.innerText = "TX: " + tx.hash;
+    const tx = await contract.transfer(
+      to,
+      value
+    );
+
+    status.innerHTML = `
+      トランザクション送信済み
+      <br><br>
+
+      <a href="https://basescan.org/tx/${tx.hash}"
+         target="_blank">
+         Basescanで確認
+      </a>
+    `;
 
     await tx.wait();
 
-    status.innerText = "成功！ TX: " + tx.hash;
+    status.innerHTML = `
+      ✅ 送金成功
+      <br><br>
+
+      TX Hash
+      <br>
+      ${tx.hash}
+      <br><br>
+
+      <a href="https://basescan.org/tx/${tx.hash}"
+         target="_blank">
+         Basescanで確認
+      </a>
+    `;
 
   } catch (err) {
-    console.error("sendUSDC error:", err);
+
+    console.error(err);
+
     document.getElementById("sendStatus").innerText =
-      "エラー: " + (err.message || err);
+      "エラー: " +
+      (err.reason ||
+       err.message ||
+       "Unknown Error");
+
+  } finally {
+
+    const sendBtn =
+      document.getElementById("sendBtn");
+
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.innerText = "Send USDC";
+    }
   }
 }
+  
 
 </script>
 
