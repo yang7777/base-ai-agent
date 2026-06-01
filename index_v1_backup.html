@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BASE AI CHAT Complete</title>
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<style>
+body{font-family:Arial;max-width:900px;margin:20px auto;padding:20px}
+input,textarea,button{width:100%;padding:10px;margin-top:8px}
+.card{border:1px solid #ddd;padding:12px;margin-top:12px}
+.small{font-size:12px;word-break:break-all}
+
+/* ── 追加: ステータス表示 ── */
+#statusBar{
+  display:none;
+  padding:10px 14px;
+  margin-top:12px;
+  border-radius:6px;
+  font-size:14px;
+  word-break:break-all;
+}
+#statusBar.info  {background:#e8f4fd;border:1px solid #90caf9;color:#0d47a1}
+#statusBar.error {background:#fdecea;border:1px solid #ef9a9a;color:#b71c1c}
+#statusBar.warn  {background:#fff8e1;border:1px solid #ffe082;color:#e65100}
+#statusBar.ok    {background:#e8f5e9;border:1px solid #a5d6a7;color:#1b5e20}
+</style>
+</head>
+<body>
+<h1>BASE AI CHAT</h1>
+
+<button onclick="connectWallet()">Connect Wallet</button>
+
+<!-- ステータスバー（エラー・情報・警告・完了を共通表示） -->
+<div id="statusBar"></div>
+
+<div class="card">
+  <div id="walletInfo">Not Connected</div>
+</div>
+
+<div class="card">
+  <h3>ETH Send</h3>
+  <input id="ethTo" placeholder="Address">
+  <input id="ethAmount" placeholder="ETH Amount">
+  <button id="btnSendETH" onclick="sendETH()">Send ETH</button>
+</div>
+
+<div class="card">
+  <h3>USDC Send</h3>
+  <input id="usdcTo" placeholder="Address">
+  <input id="usdcAmount" placeholder="USDC Amount">
+  <button id="btnSendUSDC" onclick="sendUSDC()">Send USDC</button>
+</div>
+
+<div class="card">
+  <h3>Saved Addresses</h3>
+  <input id="saveName" placeholder="Name">
+  <input id="saveAddress" placeholder="Address">
+  <button onclick="saveAddress()">Save Address</button>
+  <div id="addressBook"></div>
+</div>
+
+<div class="card">
+  <h3>Transaction History</h3>
+  <div id="history"></div>
+</div>
+
+<div class="card">
+  <h3>AI Chat</h3>
+  <textarea id="userInput"></textarea>
+  <button onclick="sendMessage()">Send</button>
+  <div id="response"></div>
+</div>
+
+<script>
+/* ================================================================
+   定数
+================================================================ */
+const USDC_ADDRESS   = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const BASE_CHAIN_ID  = "0x2105"; // Base Mainnet = 8453
+
+const ERC20_ABI = [
+  "function transfer(address to,uint amount) returns (bool)",
+  "function balanceOf(address owner) view returns (uint256)",
+  "function decimals() view returns (uint8)"
+];
+
+/* ================================================================
+   状態管理
+================================================================ */
+let currentAccount = null;
+
+/* ================================================================
+   UI ヘルパー
+================================================================ */
+
+/**
+ * ステータスバーを表示する。
+ * @param {string} msg   表示メッセージ
+ * @param {'info'|'error'|'warn'|'ok'} type スタイル
+ */
+function showStatus(msg, type = "info") {
+  const bar = document.getElementById("statusBar");
+  bar.textContent = msg;
+  bar.className   = type;
+  bar.style.display = "block";
+}
+
+/** ステータスバーを非表示にする */
+function hideStatus() {
+  document.getElementById("statusBar").style.display = "none";
+}
+
+/**
+ * 送金ボタンの活性/非活性を切り替える。
+ * @param {string} btnId  ボタン要素の id
+ * @param {boolean} busy  true = 処理中（disabled）
+ * @param {string} label  ボタンのテキスト
+ */
+function setBusy(btnId, busy, label) {
+  const btn = document.getElementById(btnId);
+  btn.disabled    = busy;
+  btn.textContent = label;
+}
+
+/* ================================================================
+   エラーコード → 日本語メッセージ変換
+================================================================ */
+function friendlyError(e) {
+  if (e.code === 4001 || e.code === "ACTION_REJECTED") {
+    return "キャンセルされました（ウォレットで拒否されました）";
+  }
+  if (e.code === -32603 || (e.message && e.message.includes("insufficient funds"))) {
+    return "残高またはガスが不足しています";
+  }
+  if (e.code === "NETWORK_ERROR") {
+    return "ネットワークエラーが発生しました。接続を確認してください";
+  }
+  if (e.code === "UNPREDICTABLE_GAS_LIMIT") {
+    return "ガスの見積もりに失敗しました。送金先アドレスを確認してください";
+  }
+  return "エラー: " + (e.reason || e.message || String(e));
+}
+
+/* ================================================================
+   ガード: ウォレット接続確認
+================================================================ */
+function requireWallet() {
+  if (typeof window.ethereum === "undefined") {
+    throw new Error("ウォレットが見つかりません。MetaMask などをインストールしてください");
+  }
+  if (!currentAccount) {
+    throw new Error("先にウォレットを接続してください");
+  }
+}
+
+/* ================================================================
+   ガード: Base Mainnet チェック & 自動切替
+================================================================ */
+async function ensureBaseChain() {
+  const chainId = await window.ethereum.request({ method: "eth_chainId" });
+  if (chainId === BASE_CHAIN_ID) return; // すでに Base
+
+  showStatus("Base Mainnet へ切り替えています...", "info");
+  try {
+    await window.ethereum.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: BASE_CHAIN_ID }],
+    });
+  } catch (switchErr) {
+    // 4902: ウォレットに Base が未登録 → 追加してから切り替え
+    if (switchErr.code === 4902) {
+      await window.ethereum.request({
+        method: "wallet_addEthereumChain",
+        params: [{
+          chainId:         BASE_CHAIN_ID,
+          chainName:       "Base",
+          nativeCurrency:  { name: "ETH", symbol: "ETH", decimals: 18 },
+          rpcUrls:         ["https://mainnet.base.org"],
+          blockExplorerUrls: ["https://basescan.org"],
+        }],
+      });
+    } else {
+      throw switchErr; // ユーザーキャンセルなどはそのまま上に投げる
+    }
+  }
+
+  // 切替後に再確認
+  const newChainId = await window.ethereum.request({ method: "eth_chainId" });
+  if (newChainId !== BASE_CHAIN_ID) {
+    throw new Error("Base Mainnet への切替に失敗しました。ウォレットで手動で切り替えてください");
+  }
+}
+
+/* ================================================================
+   バリデーション: アドレス
+================================================================ */
+/**
+ * アドレス文字列を検証し、EIP-55 チェックサム済みアドレスを返す。
+ * 無効な場合は例外を投げる。
+ * @param {string} addr
+ * @returns {string} チェックサム済みアドレス
+ */
+function validateAddress(addr) {
+  const trimmed = (addr || "").trim();
+  if (!trimmed) {
+    throw new Error("送金先アドレスを入力してください");
+  }
+  if (!ethers.utils.isAddress(trimmed)) {
+    throw new Error("無効なEthereumアドレスです: " + trimmed);
+  }
+  return ethers.utils.getAddress(trimmed); // 正規化（チェックサム付き）
+}
+
+/* ================================================================
+   バリデーション: 金額
+================================================================ */
+/**
+ * 金額文字列を検証する。
+ * @param {string} amount
+ * @param {string} symbol  表示用トークン名（"ETH" など）
+ * @returns {string} トリム済み金額文字列
+ */
+function validateAmount(amount, symbol) {
+  const trimmed = (amount || "").trim();
+  if (!trimmed) {
+    throw new Error("金額を入力してください");
+  }
+  const num = parseFloat(trimmed);
+  if (isNaN(num) || num <= 0) {
+    throw new Error("有効な" + symbol + "金額を入力してください（0より大きい数値）");
+  }
+  return trimmed;
+}
+
+/* ================================================================
+   localStorage ヘルパー
+================================================================ */
+function loadHistory() {
+  const h = JSON.parse(localStorage.getItem("txHistory") || "[]");
+  document.getElementById("history").innerHTML = h.reverse().map(x =>
+    `<div class='small'>${x.type}: ${x.amount}<br>${x.hash}</div><hr>`
+  ).join("");
+}
+
+function saveHistory(item) {
+  const h = JSON.parse(localStorage.getItem("txHistory") || "[]");
+  h.push(item);
+  localStorage.setItem("txHistory", JSON.stringify(h));
+  loadHistory();
+}
+
+function renderAddressBook() {
+  const items = JSON.parse(localStorage.getItem("addressBook") || "[]");
+  document.getElementById("addressBook").innerHTML = items.map((x, i) =>
+    `<div>${x.name} - ${x.address}
+      <button onclick="copyAddress('${x.address}')">Copy</button>
+    </div>`
+  ).join("");
+}
+
+function saveAddress() {
+  const name    = document.getElementById("saveName").value;
+  const address = document.getElementById("saveAddress").value;
+  const items   = JSON.parse(localStorage.getItem("addressBook") || "[]");
+  items.push({ name, address });
+  localStorage.setItem("addressBook", JSON.stringify(items));
+  renderAddressBook();
+}
+
+function copyAddress(a) {
+  navigator.clipboard.writeText(a);
+  alert("Copied");
+}
+
+/* ================================================================
+   ウォレット接続
+================================================================ */
+async function connectWallet() {
+  if (typeof window.ethereum === "undefined") {
+    showStatus("ウォレットが見つかりません。MetaMask などをインストールしてください", "error");
+    return;
+  }
+
+  try {
+    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    currentAccount = accounts[0];
+
+    // ── 接続後にチェーン確認 ──
+    const chainId = await window.ethereum.request({ method: "eth_chainId" });
+    if (chainId !== BASE_CHAIN_ID) {
+      showStatus("Base Mainnet に接続されていません。送金時に自動切替を行います", "warn");
+    } else {
+      hideStatus();
+    }
+
+    const balance = await window.ethereum.request({
+      method: "eth_getBalance",
+      params: [currentAccount, "latest"],
+    });
+    const eth = Number(ethers.utils.formatEther(balance)).toFixed(4);
+
+    const ep  = new ethers.providers.Web3Provider(window.ethereum);
+    const c   = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, ep);
+    const raw = await c.balanceOf(currentAccount);
+    const dec = await c.decimals();
+    const usdc = Number(ethers.utils.formatUnits(raw, dec)).toFixed(2);
+
+    document.getElementById("walletInfo").innerHTML = `
+      Address:<br>${currentAccount}<br><br>
+      ETH: ${eth}<br>
+      USDC: ${usdc}<br>
+      <button onclick="copyAddress('${currentAccount}')">Copy Address</button>`;
+
+    // ── ウォレットイベントリスナー登録（重複防止のため一度だけ） ──
+    registerWalletEvents();
+
+  } catch (e) {
+    showStatus(friendlyError(e), "error");
+  }
+}
+
+/* ================================================================
+   ウォレットイベント (accountsChanged / chainChanged)
+================================================================ */
+let _walletEventsRegistered = false;
+
+function registerWalletEvents() {
+  if (_walletEventsRegistered) return;
+  _walletEventsRegistered = true;
+
+  // アカウント切替 / ロック
+  window.ethereum.on("accountsChanged", (accounts) => {
+    if (accounts.length === 0) {
+      currentAccount = null;
+      document.getElementById("walletInfo").textContent = "Not Connected";
+      showStatus("ウォレットが切断されました。再接続してください", "warn");
+    } else {
+      currentAccount = accounts[0];
+      showStatus("アカウントが切り替わりました。残高を更新しています...", "info");
+      connectWallet(); // 残高・表示を再取得
+    }
+  });
+
+  // チェーン切替
+  window.ethereum.on("chainChanged", (chainId) => {
+    if (chainId !== BASE_CHAIN_ID) {
+      showStatus(
+        "Base Mainnet 以外のネットワークに切り替わりました。送金時に自動切替します",
+        "warn"
+      );
+    } else {
+      showStatus("Base Mainnet に接続されています", "ok");
+    }
+  });
+}
+
+/* ================================================================
+   ETH 送金
+================================================================ */
+async function sendETH() {
+  hideStatus();
+  setBusy("btnSendETH", true, "送信中...");
+
+  try {
+    // ── ガード ──
+    requireWallet();
+    await ensureBaseChain();
+
+    // ── バリデーション ──
+    const toAddr = validateAddress(document.getElementById("ethTo").value);
+    const amount = validateAmount(document.getElementById("ethAmount").value, "ETH");
+
+    showStatus("署名を確認してください...", "info");
+
+    const ep     = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = ep.getSigner();
+    const tx     = await signer.sendTransaction({
+      to:    toAddr,
+      value: ethers.utils.parseEther(amount),
+    });
+
+    showStatus("送信中... TX: " + tx.hash, "info");
+    await tx.wait();
+
+    saveHistory({ type: "ETH", amount, hash: tx.hash });
+    showStatus("ETH 送金完了: " + tx.hash, "ok");
+
+  } catch (e) {
+    showStatus(friendlyError(e), "error");
+  } finally {
+    setBusy("btnSendETH", false, "Send ETH");
+  }
+}
+
+/* ================================================================
+   USDC 送金
+================================================================ */
+async function sendUSDC() {
+  hideStatus();
+  setBusy("btnSendUSDC", true, "送信中...");
+
+  try {
+    // ── ガード ──
+    requireWallet();
+    await ensureBaseChain();
+
+    // ── バリデーション ──
+    const toAddr = validateAddress(document.getElementById("usdcTo").value);
+    const amount = validateAmount(document.getElementById("usdcAmount").value, "USDC");
+
+    showStatus("署名を確認してください...", "info");
+
+    const ep     = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = ep.getSigner();
+    const c      = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
+
+    // decimals() を毎回取得して固定値ハードコードを避ける
+    const dec    = await c.decimals();
+    const tx     = await c.transfer(
+      toAddr,
+      ethers.utils.parseUnits(amount, dec)
+    );
+
+    showStatus("送信中... TX: " + tx.hash, "info");
+    await tx.wait();
+
+    saveHistory({ type: "USDC", amount, hash: tx.hash });
+    showStatus("USDC 送金完了: " + tx.hash, "ok");
+
+  } catch (e) {
+    showStatus(friendlyError(e), "error");
+  } finally {
+    setBusy("btnSendUSDC", false, "Send USDC");
+  }
+}
+
+/* ================================================================
+   AI チャット
+================================================================ */
+async function sendMessage() {
+  try {
+    const response = await fetch("http://localhost:3001/chat", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ message: document.getElementById("userInput").value }),
+    });
+    const data = await response.json();
+    document.getElementById("response").innerText = data.reply;
+  } catch (e) {
+    document.getElementById("response").innerText = e.message;
+  }
+}
+
+/* ================================================================
+   初期化
+================================================================ */
+loadHistory();
+renderAddressBook();
+</script>
+</body>
+</html>

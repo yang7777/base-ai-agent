@@ -6,32 +6,330 @@
 <title>BASE AI CHAT Complete</title>
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <style>
-body{font-family:Arial;max-width:900px;margin:20px auto;padding:20px}
-input,textarea,button{width:100%;padding:10px;margin-top:8px}
-.card{border:1px solid #ddd;padding:12px;margin-top:12px}
-.small{font-size:12px;word-break:break-all}
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+JP:wght@400;500&display=swap');
 
-/* ── 追加: ステータス表示 ── */
-#statusBar{
-  display:none;
-  padding:10px 14px;
-  margin-top:12px;
-  border-radius:6px;
-  font-size:14px;
-  word-break:break-all;
+:root {
+  --bg: #0d0d0d;
+  --surface: #141414;
+  --surface2: #1a1a1a;
+  --border: #2a2a2a;
+  --accent: #00e5a0;
+  --accent-dim: rgba(0,229,160,0.12);
+  --accent-hover: #00ffb3;
+  --danger: #ff4d4d;
+  --danger-dim: rgba(255,77,77,0.12);
+  --warn: #ffb340;
+  --warn-dim: rgba(255,179,64,0.12);
+  --text: #e8e8e8;
+  --text-sub: #888;
+  --radius: 8px;
 }
-#statusBar.info  {background:#e8f4fd;border:1px solid #90caf9;color:#0d47a1}
-#statusBar.error {background:#fdecea;border:1px solid #ef9a9a;color:#b71c1c}
-#statusBar.warn  {background:#fff8e1;border:1px solid #ffe082;color:#e65100}
-#statusBar.ok    {background:#e8f5e9;border:1px solid #a5d6a7;color:#1b5e20}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'IBM Plex Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 32px 20px 60px;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin-bottom: 28px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+h1::before {
+  content: '';
+  display: inline-block;
+  width: 8px; height: 8px;
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--accent);
+}
+
+h3 {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-sub);
+  margin-bottom: 14px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-top: 14px;
+}
+
+input, textarea {
+  width: 100%;
+  padding: 10px 14px;
+  margin-top: 8px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+input:focus, textarea:focus {
+  border-color: var(--accent);
+}
+input::placeholder, textarea::placeholder {
+  color: #555;
+}
+
+button {
+  width: 100%;
+  padding: 11px 16px;
+  margin-top: 10px;
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  color: var(--accent);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+}
+button:hover:not(:disabled) {
+  background: var(--accent-dim);
+  color: var(--accent-hover);
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+button.primary {
+  background: var(--accent);
+  color: #000;
+  font-weight: 600;
+  border-color: var(--accent);
+}
+button.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: #000;
+}
+button.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+button.danger:hover:not(:disabled) {
+  background: var(--danger-dim);
+}
+
+#connectBtn {
+  width: auto;
+  padding: 10px 24px;
+}
+
+/* ── Status Bar ── */
+#statusBar {
+  display: none;
+  padding: 10px 14px;
+  margin-top: 12px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  word-break: break-all;
+  font-family: 'IBM Plex Mono', monospace;
+}
+#statusBar.info  { background: rgba(0,149,255,0.1); border: 1px solid rgba(0,149,255,0.35); color: #6eb4ff; }
+#statusBar.error { background: var(--danger-dim); border: 1px solid rgba(255,77,77,0.35); color: var(--danger); }
+#statusBar.warn  { background: var(--warn-dim); border: 1px solid rgba(255,179,64,0.35); color: var(--warn); }
+#statusBar.ok    { background: rgba(0,229,160,0.08); border: 1px solid rgba(0,229,160,0.35); color: var(--accent); }
+
+/* ── Wallet Info ── */
+#walletInfo {
+  font-size: 12px;
+  color: var(--text-sub);
+  line-height: 1.8;
+}
+#walletInfo .addr {
+  color: var(--text);
+  font-size: 13px;
+  word-break: break-all;
+}
+#walletInfo .bal {
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ── History / Address Book ── */
+.small { font-size: 11px; word-break: break-all; color: var(--text-sub); }
+.small + hr { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+
+/* ── Address Book entry ── */
+.ab-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+.ab-entry button {
+  width: auto;
+  padding: 4px 10px;
+  margin-top: 0;
+  font-size: 11px;
+}
+
+/* ================================================================
+   CONFIRMATION MODAL
+================================================================ */
+#modalOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+#modalOverlay.active {
+  display: flex;
+}
+
+#modalBox {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 420px;
+  padding: 28px;
+  position: relative;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,229,160,0.08);
+  animation: modalIn 0.22s cubic-bezier(0.22,1,0.36,1);
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+#modalBox .modal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+#modalBox .modal-header .icon {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+#modalBox .modal-header .icon.eth  { background: rgba(98,126,234,0.18); }
+#modalBox .modal-header .icon.usdc { background: rgba(39,117,202,0.18); }
+
+#modalBox .modal-header .title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+#modalBox .modal-header .subtitle {
+  font-size: 11px;
+  color: var(--text-sub);
+  margin-top: 2px;
+}
+
+.modal-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  background: var(--surface2);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.modal-row .label {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-sub);
+}
+.modal-row .value {
+  font-size: 13px;
+  color: var(--text);
+  word-break: break-all;
+  line-height: 1.5;
+}
+.modal-row .value.amount {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+.modal-row .value.token-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-sub);
+  margin-top: 2px;
+}
+
+.modal-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--warn-dim);
+  border: 1px solid rgba(255,179,64,0.3);
+  border-radius: var(--radius);
+  margin-bottom: 18px;
+  font-size: 11px;
+  color: var(--warn);
+  line-height: 1.5;
+}
+.modal-warning .wi { flex-shrink: 0; margin-top: 1px; }
+
+.modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 4px;
+}
+.modal-actions button {
+  margin-top: 0;
+}
+
+/* ── Response ── */
+#response {
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-sub);
+  white-space: pre-wrap;
+}
 </style>
 </head>
 <body>
+
 <h1>BASE AI CHAT</h1>
+<button id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
 
-<button onclick="connectWallet()">Connect Wallet</button>
-
-<!-- ステータスバー（エラー・情報・警告・完了を共通表示） -->
 <div id="statusBar"></div>
 
 <div class="card">
@@ -40,22 +338,22 @@ input,textarea,button{width:100%;padding:10px;margin-top:8px}
 
 <div class="card">
   <h3>ETH Send</h3>
-  <input id="ethTo" placeholder="Address">
-  <input id="ethAmount" placeholder="ETH Amount">
-  <button id="btnSendETH" onclick="sendETH()">Send ETH</button>
+  <input id="ethTo" placeholder="Recipient address (0x...)">
+  <input id="ethAmount" placeholder="Amount (ETH)">
+  <button id="btnSendETH" onclick="initiateSend('ETH')">Send ETH</button>
 </div>
 
 <div class="card">
   <h3>USDC Send</h3>
-  <input id="usdcTo" placeholder="Address">
-  <input id="usdcAmount" placeholder="USDC Amount">
-  <button id="btnSendUSDC" onclick="sendUSDC()">Send USDC</button>
+  <input id="usdcTo" placeholder="Recipient address (0x...)">
+  <input id="usdcAmount" placeholder="Amount (USDC)">
+  <button id="btnSendUSDC" onclick="initiateSend('USDC')">Send USDC</button>
 </div>
 
 <div class="card">
   <h3>Saved Addresses</h3>
-  <input id="saveName" placeholder="Name">
-  <input id="saveAddress" placeholder="Address">
+  <input id="saveName" placeholder="Label">
+  <input id="saveAddress" placeholder="Address (0x...)">
   <button onclick="saveAddress()">Save Address</button>
   <div id="addressBook"></div>
 </div>
@@ -67,17 +365,64 @@ input,textarea,button{width:100%;padding:10px;margin-top:8px}
 
 <div class="card">
   <h3>AI Chat</h3>
-  <textarea id="userInput"></textarea>
+  <textarea id="userInput" rows="3" placeholder="Type your message..."></textarea>
   <button onclick="sendMessage()">Send</button>
   <div id="response"></div>
+</div>
+
+<!-- ================================================================
+     CONFIRMATION MODAL
+================================================================ -->
+<div id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div id="modalBox">
+
+    <div class="modal-header">
+      <div class="icon" id="modalIcon"></div>
+      <div>
+        <div class="title" id="modalTitle">送金確認</div>
+        <div class="subtitle">内容をよく確認してから承認してください</div>
+      </div>
+    </div>
+
+    <!-- 送金額 -->
+    <div class="modal-row">
+      <div class="label">送金額</div>
+      <div class="value amount" id="modalAmount">—</div>
+      <div class="value token-tag" id="modalToken">—</div>
+    </div>
+
+    <!-- 送金先 -->
+    <div class="modal-row">
+      <div class="label">送金先アドレス</div>
+      <div class="value" id="modalTo">—</div>
+    </div>
+
+    <!-- ネットワーク -->
+    <div class="modal-row">
+      <div class="label">ネットワーク</div>
+      <div class="value" style="color:var(--accent)">Base Mainnet</div>
+    </div>
+
+    <!-- 警告 -->
+    <div class="modal-warning">
+      <span class="wi">⚠</span>
+      <span>送金後のキャンセルはできません。アドレスと金額を再度ご確認ください。</span>
+    </div>
+
+    <div class="modal-actions">
+      <button class="danger" onclick="cancelModal()">Cancel</button>
+      <button class="primary" id="modalConfirmBtn" onclick="confirmSend()">Confirm &amp; Sign</button>
+    </div>
+
+  </div>
 </div>
 
 <script>
 /* ================================================================
    定数
 ================================================================ */
-const USDC_ADDRESS   = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-const BASE_CHAIN_ID  = "0x2105"; // Base Mainnet = 8453
+const USDC_ADDRESS  = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const BASE_CHAIN_ID = "0x2105";
 
 const ERC20_ABI = [
   "function transfer(address to,uint amount) returns (bool)",
@@ -90,33 +435,21 @@ const ERC20_ABI = [
 ================================================================ */
 let currentAccount = null;
 
+// モーダル用: 確認後に実行するコールバックを保持
+let _pendingTx = null; // { token: 'ETH'|'USDC', to: string, amount: string }
+
 /* ================================================================
    UI ヘルパー
 ================================================================ */
-
-/**
- * ステータスバーを表示する。
- * @param {string} msg   表示メッセージ
- * @param {'info'|'error'|'warn'|'ok'} type スタイル
- */
 function showStatus(msg, type = "info") {
   const bar = document.getElementById("statusBar");
   bar.textContent = msg;
   bar.className   = type;
   bar.style.display = "block";
 }
-
-/** ステータスバーを非表示にする */
 function hideStatus() {
   document.getElementById("statusBar").style.display = "none";
 }
-
-/**
- * 送金ボタンの活性/非活性を切り替える。
- * @param {string} btnId  ボタン要素の id
- * @param {boolean} busy  true = 処理中（disabled）
- * @param {string} label  ボタンのテキスト
- */
 function setBusy(btnId, busy, label) {
   const btn = document.getElementById(btnId);
   btn.disabled    = busy;
@@ -143,7 +476,7 @@ function friendlyError(e) {
 }
 
 /* ================================================================
-   ガード: ウォレット接続確認
+   ガード
 ================================================================ */
 function requireWallet() {
   if (typeof window.ethereum === "undefined") {
@@ -154,12 +487,9 @@ function requireWallet() {
   }
 }
 
-/* ================================================================
-   ガード: Base Mainnet チェック & 自動切替
-================================================================ */
 async function ensureBaseChain() {
   const chainId = await window.ethereum.request({ method: "eth_chainId" });
-  if (chainId === BASE_CHAIN_ID) return; // すでに Base
+  if (chainId === BASE_CHAIN_ID) return;
 
   showStatus("Base Mainnet へ切り替えています...", "info");
   try {
@@ -168,24 +498,22 @@ async function ensureBaseChain() {
       params: [{ chainId: BASE_CHAIN_ID }],
     });
   } catch (switchErr) {
-    // 4902: ウォレットに Base が未登録 → 追加してから切り替え
     if (switchErr.code === 4902) {
       await window.ethereum.request({
         method: "wallet_addEthereumChain",
         params: [{
-          chainId:         BASE_CHAIN_ID,
-          chainName:       "Base",
-          nativeCurrency:  { name: "ETH", symbol: "ETH", decimals: 18 },
-          rpcUrls:         ["https://mainnet.base.org"],
+          chainId:           BASE_CHAIN_ID,
+          chainName:         "Base",
+          nativeCurrency:    { name: "ETH", symbol: "ETH", decimals: 18 },
+          rpcUrls:           ["https://mainnet.base.org"],
           blockExplorerUrls: ["https://basescan.org"],
         }],
       });
     } else {
-      throw switchErr; // ユーザーキャンセルなどはそのまま上に投げる
+      throw switchErr;
     }
   }
 
-  // 切替後に再確認
   const newChainId = await window.ethereum.request({ method: "eth_chainId" });
   if (newChainId !== BASE_CHAIN_ID) {
     throw new Error("Base Mainnet への切替に失敗しました。ウォレットで手動で切り替えてください");
@@ -193,43 +521,20 @@ async function ensureBaseChain() {
 }
 
 /* ================================================================
-   バリデーション: アドレス
+   バリデーション
 ================================================================ */
-/**
- * アドレス文字列を検証し、EIP-55 チェックサム済みアドレスを返す。
- * 無効な場合は例外を投げる。
- * @param {string} addr
- * @returns {string} チェックサム済みアドレス
- */
 function validateAddress(addr) {
   const trimmed = (addr || "").trim();
-  if (!trimmed) {
-    throw new Error("送金先アドレスを入力してください");
-  }
-  if (!ethers.utils.isAddress(trimmed)) {
-    throw new Error("無効なEthereumアドレスです: " + trimmed);
-  }
-  return ethers.utils.getAddress(trimmed); // 正規化（チェックサム付き）
+  if (!trimmed) throw new Error("送金先アドレスを入力してください");
+  if (!ethers.utils.isAddress(trimmed)) throw new Error("無効なEthereumアドレスです: " + trimmed);
+  return ethers.utils.getAddress(trimmed);
 }
 
-/* ================================================================
-   バリデーション: 金額
-================================================================ */
-/**
- * 金額文字列を検証する。
- * @param {string} amount
- * @param {string} symbol  表示用トークン名（"ETH" など）
- * @returns {string} トリム済み金額文字列
- */
 function validateAmount(amount, symbol) {
   const trimmed = (amount || "").trim();
-  if (!trimmed) {
-    throw new Error("金額を入力してください");
-  }
+  if (!trimmed) throw new Error("金額を入力してください");
   const num = parseFloat(trimmed);
-  if (isNaN(num) || num <= 0) {
-    throw new Error("有効な" + symbol + "金額を入力してください（0より大きい数値）");
-  }
+  if (isNaN(num) || num <= 0) throw new Error("有効な" + symbol + "金額を入力してください（0より大きい数値）");
   return trimmed;
 }
 
@@ -253,7 +558,8 @@ function saveHistory(item) {
 function renderAddressBook() {
   const items = JSON.parse(localStorage.getItem("addressBook") || "[]");
   document.getElementById("addressBook").innerHTML = items.map((x, i) =>
-    `<div>${x.name} - ${x.address}
+    `<div class="ab-entry">
+      <span style="font-size:12px">${x.name} — <span style="color:var(--text-sub)">${x.address.slice(0,10)}…${x.address.slice(-6)}</span></span>
       <button onclick="copyAddress('${x.address}')">Copy</button>
     </div>`
   ).join("");
@@ -281,12 +587,10 @@ async function connectWallet() {
     showStatus("ウォレットが見つかりません。MetaMask などをインストールしてください", "error");
     return;
   }
-
   try {
     const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
     currentAccount = accounts[0];
 
-    // ── 接続後にチェーン確認 ──
     const chainId = await window.ethereum.request({ method: "eth_chainId" });
     if (chainId !== BASE_CHAIN_ID) {
       showStatus("Base Mainnet に接続されていません。送金時に自動切替を行います", "warn");
@@ -306,22 +610,23 @@ async function connectWallet() {
     const dec = await c.decimals();
     const usdc = Number(ethers.utils.formatUnits(raw, dec)).toFixed(2);
 
+    const short = currentAccount.slice(0, 8) + "…" + currentAccount.slice(-6);
     document.getElementById("walletInfo").innerHTML = `
-      Address:<br>${currentAccount}<br><br>
-      ETH: ${eth}<br>
-      USDC: ${usdc}<br>
-      <button onclick="copyAddress('${currentAccount}')">Copy Address</button>`;
+      <div class="addr">${currentAccount}</div>
+      <div style="margin-top:6px;display:flex;gap:20px">
+        <div><span style="color:var(--text-sub);font-size:11px">ETH</span><br><span class="bal">${eth}</span></div>
+        <div><span style="color:var(--text-sub);font-size:11px">USDC</span><br><span class="bal">${usdc}</span></div>
+      </div>
+      <button onclick="copyAddress('${currentAccount}')" style="width:auto;padding:5px 14px;margin-top:10px;font-size:11px">Copy Address</button>`;
 
-    // ── ウォレットイベントリスナー登録（重複防止のため一度だけ） ──
     registerWalletEvents();
-
   } catch (e) {
     showStatus(friendlyError(e), "error");
   }
 }
 
 /* ================================================================
-   ウォレットイベント (accountsChanged / chainChanged)
+   ウォレットイベント
 ================================================================ */
 let _walletEventsRegistered = false;
 
@@ -329,7 +634,6 @@ function registerWalletEvents() {
   if (_walletEventsRegistered) return;
   _walletEventsRegistered = true;
 
-  // アカウント切替 / ロック
   window.ethereum.on("accountsChanged", (accounts) => {
     if (accounts.length === 0) {
       currentAccount = null;
@@ -338,17 +642,13 @@ function registerWalletEvents() {
     } else {
       currentAccount = accounts[0];
       showStatus("アカウントが切り替わりました。残高を更新しています...", "info");
-      connectWallet(); // 残高・表示を再取得
+      connectWallet();
     }
   });
 
-  // チェーン切替
   window.ethereum.on("chainChanged", (chainId) => {
     if (chainId !== BASE_CHAIN_ID) {
-      showStatus(
-        "Base Mainnet 以外のネットワークに切り替わりました。送金時に自動切替します",
-        "warn"
-      );
+      showStatus("Base Mainnet 以外のネットワークに切り替わりました。送金時に自動切替します", "warn");
     } else {
       showStatus("Base Mainnet に接続されています", "ok");
     }
@@ -356,20 +656,113 @@ function registerWalletEvents() {
 }
 
 /* ================================================================
-   ETH 送金
+   Phase 2: 送金確認モーダル
 ================================================================ */
-async function sendETH() {
+
+/**
+ * 送金ボタン押下時に呼ばれる。
+ * バリデーション → モーダル表示。ここではウォレット署名しない。
+ * @param {'ETH'|'USDC'} token
+ */
+async function initiateSend(token) {
   hideStatus();
-  setBusy("btnSendETH", true, "送信中...");
 
   try {
     // ── ガード ──
     requireWallet();
-    await ensureBaseChain();
 
     // ── バリデーション ──
-    const toAddr = validateAddress(document.getElementById("ethTo").value);
-    const amount = validateAmount(document.getElementById("ethAmount").value, "ETH");
+    const toField     = token === "ETH" ? "ethTo"     : "usdcTo";
+    const amountField = token === "ETH" ? "ethAmount" : "usdcAmount";
+    const toAddr = validateAddress(document.getElementById(toField).value);
+    const amount = validateAmount(document.getElementById(amountField).value, token);
+
+    // ── 自分自身への送金を警告（送金は止めないが確認モーダルで明示） ──
+    const isSelf = toAddr.toLowerCase() === currentAccount.toLowerCase();
+
+    // ── pending に格納 ──
+    _pendingTx = { token, to: toAddr, amount, isSelf };
+
+    // ── モーダルに値をセット ──
+    openModal(_pendingTx);
+
+  } catch (e) {
+    showStatus(friendlyError(e), "error");
+  }
+}
+
+/**
+ * モーダルを開いて内容を表示する。
+ * @param {{ token: string, to: string, amount: string, isSelf: boolean }} tx
+ */
+function openModal(tx) {
+  const isETH = tx.token === "ETH";
+
+  // アイコン
+  const iconEl = document.getElementById("modalIcon");
+  iconEl.className = "icon " + (isETH ? "eth" : "usdc");
+  iconEl.textContent = isETH ? "Ξ" : "$";
+
+  // 各フィールド
+  document.getElementById("modalAmount").textContent = tx.amount;
+  document.getElementById("modalToken").innerHTML =
+    `<span>${tx.token}</span>` + (tx.isSelf ? `<span style="color:var(--warn);margin-left:8px;font-size:10px">⚠ 自分自身のアドレス</span>` : "");
+  document.getElementById("modalTo").textContent = tx.to;
+
+  // オーバーレイ表示
+  const overlay = document.getElementById("modalOverlay");
+  overlay.classList.add("active");
+
+  // フォーカスをConfirmボタンへ（アクセシビリティ）
+  document.getElementById("modalConfirmBtn").focus();
+
+  // ESCキーでキャンセル
+  document.addEventListener("keydown", _handleModalKey);
+}
+
+/** ESCキー押下でモーダルをキャンセル */
+function _handleModalKey(e) {
+  if (e.key === "Escape") cancelModal();
+}
+
+/** モーダルを閉じて pending をクリア */
+function cancelModal() {
+  document.getElementById("modalOverlay").classList.remove("active");
+  document.removeEventListener("keydown", _handleModalKey);
+  _pendingTx = null;
+  showStatus("送金をキャンセルしました", "warn");
+}
+
+/**
+ * Confirm ボタン押下 → 実際の送金処理へ進む。
+ */
+async function confirmSend() {
+  if (!_pendingTx) return;
+
+  const tx = _pendingTx;
+  _pendingTx = null;
+
+  // モーダルを閉じる
+  document.getElementById("modalOverlay").classList.remove("active");
+  document.removeEventListener("keydown", _handleModalKey);
+
+  // トークン種別に応じた送金を実行
+  if (tx.token === "ETH") {
+    await executeETH(tx.to, tx.amount);
+  } else {
+    await executeUSDC(tx.to, tx.amount);
+  }
+}
+
+/* ================================================================
+   ETH 送金実行（署名〜送信）
+================================================================ */
+async function executeETH(toAddr, amount) {
+  hideStatus();
+  setBusy("btnSendETH", true, "送信中...");
+
+  try {
+    await ensureBaseChain();
 
     showStatus("署名を確認してください...", "info");
 
@@ -394,33 +787,22 @@ async function sendETH() {
 }
 
 /* ================================================================
-   USDC 送金
+   USDC 送金実行（署名〜送信）
 ================================================================ */
-async function sendUSDC() {
+async function executeUSDC(toAddr, amount) {
   hideStatus();
   setBusy("btnSendUSDC", true, "送信中...");
 
   try {
-    // ── ガード ──
-    requireWallet();
     await ensureBaseChain();
-
-    // ── バリデーション ──
-    const toAddr = validateAddress(document.getElementById("usdcTo").value);
-    const amount = validateAmount(document.getElementById("usdcAmount").value, "USDC");
 
     showStatus("署名を確認してください...", "info");
 
     const ep     = new ethers.providers.Web3Provider(window.ethereum);
     const signer = ep.getSigner();
     const c      = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
-
-    // decimals() を毎回取得して固定値ハードコードを避ける
     const dec    = await c.decimals();
-    const tx     = await c.transfer(
-      toAddr,
-      ethers.utils.parseUnits(amount, dec)
-    );
+    const tx     = await c.transfer(toAddr, ethers.utils.parseUnits(amount, dec));
 
     showStatus("送信中... TX: " + tx.hash, "info");
     await tx.wait();
