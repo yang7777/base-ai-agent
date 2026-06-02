@@ -323,94 +323,6 @@ button.danger:hover:not(:disabled) {
   color: var(--text-sub);
   white-space: pre-wrap;
 }
-
-/* ================================================================
-   TOAST NOTIFICATION
-================================================================ */
-#toastContainer {
-  position: fixed;
-  bottom: 28px;
-  right: 24px;
-  z-index: 2000;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  pointer-events: none;
-}
-
-.toast {
-  pointer-events: auto;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px 18px;
-  min-width: 280px;
-  max-width: 380px;
-  box-shadow: 0 16px 40px rgba(0,0,0,0.5);
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  animation: toastIn 0.28s cubic-bezier(0.22,1,0.36,1);
-  transition: opacity 0.3s, transform 0.3s;
-}
-.toast.hiding {
-  opacity: 0;
-  transform: translateX(20px);
-}
-@keyframes toastIn {
-  from { opacity: 0; transform: translateX(20px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-.toast.ok    { border-left: 3px solid var(--accent); }
-.toast.error { border-left: 3px solid var(--danger); }
-
-.toast-icon {
-  font-size: 18px;
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-.toast-body {
-  flex: 1;
-  min-width: 0;
-}
-.toast-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 3px;
-}
-.toast-msg {
-  font-size: 11px;
-  color: var(--text-sub);
-  word-break: break-all;
-  line-height: 1.5;
-}
-.toast-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 6px;
-  font-size: 11px;
-  color: var(--accent);
-  text-decoration: none;
-  border-bottom: 1px solid rgba(0,229,160,0.3);
-  padding-bottom: 1px;
-  transition: color 0.15s;
-}
-.toast-link:hover { color: var(--accent-hover); }
-.toast-close {
-  width: auto !important;
-  padding: 2px 6px !important;
-  margin: 0 !important;
-  font-size: 14px !important;
-  border: none !important;
-  color: var(--text-sub) !important;
-  background: transparent !important;
-  flex-shrink: 0;
-  line-height: 1;
-  cursor: pointer;
-}
-.toast-close:hover { color: var(--text) !important; }
 </style>
 </head>
 <body>
@@ -457,9 +369,6 @@ button.danger:hover:not(:disabled) {
   <button onclick="sendMessage()">Send</button>
   <div id="response"></div>
 </div>
-
-<!-- Toast Notifications -->
-<div id="toastContainer"></div>
 
 <!-- ================================================================
      CONFIRMATION MODAL
@@ -671,97 +580,8 @@ function copyAddress(a) {
 }
 
 /* ================================================================
-   Phase 3: Toast Notification
+   ウォレット接続
 ================================================================ */
-
-/**
- * 画面右下にトースト通知を表示する。
- * @param {{ type: 'ok'|'error', title: string, msg: string, txHash?: string }} opts
- * @param {number} durationMs  自動消去までのミリ秒（デフォルト 8000）
- */
-function showToast({ type = "ok", title, msg, txHash }, durationMs = 8000) {
-  const container = document.getElementById("toastContainer");
-
-  const el = document.createElement("div");
-  el.className = "toast " + type;
-
-  const icon = type === "ok" ? "✓" : "✕";
-
-  el.innerHTML = `
-    <div class="toast-icon" style="color:${type === "ok" ? "var(--accent)" : "var(--danger)"}">${icon}</div>
-    <div class="toast-body">
-      <div class="toast-title">${title}</div>
-      ${msg ? `<div class="toast-msg">${msg}</div>` : ""}
-      ${txHash ? `<a class="toast-link" href="https://basescan.org/tx/${txHash}" target="_blank" rel="noopener noreferrer">Basescan で確認 ↗</a>` : ""}
-    </div>
-    <button class="toast-close" aria-label="閉じる">✕</button>`;
-
-  // 閉じるボタン
-  el.querySelector(".toast-close").addEventListener("click", () => removeToast(el));
-
-  container.appendChild(el);
-
-  // 自動消去
-  const timer = setTimeout(() => removeToast(el), durationMs);
-  el._toastTimer = timer;
-}
-
-function removeToast(el) {
-  clearTimeout(el._toastTimer);
-  el.classList.add("hiding");
-  el.addEventListener("transitionend", () => el.remove(), { once: true });
-}
-
-/* ================================================================
-   Phase 3: 送金後フォームクリア
-================================================================ */
-function clearForm(token) {
-  if (token === "ETH") {
-    document.getElementById("ethTo").value     = "";
-    document.getElementById("ethAmount").value = "";
-  } else {
-    document.getElementById("usdcTo").value     = "";
-    document.getElementById("usdcAmount").value = "";
-  }
-}
-
-/* ================================================================
-   Phase 3: 残高リフレッシュ
-================================================================ */
-async function refreshBalances() {
-  if (!currentAccount || typeof window.ethereum === "undefined") return;
-  try {
-    const balance = await window.ethereum.request({
-      method: "eth_getBalance",
-      params: [currentAccount, "latest"],
-    });
-    const eth = Number(ethers.utils.formatEther(balance)).toFixed(4);
-
-    const ep  = new ethers.providers.Web3Provider(window.ethereum);
-    const c   = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, ep);
-    const raw = await c.balanceOf(currentAccount);
-    const dec = await c.decimals();
-    const usdc = Number(ethers.utils.formatUnits(raw, dec)).toFixed(2);
-
-    // ETH残高表示を更新
-    const ethEl  = document.querySelector("#walletInfo .bal:first-of-type");
-    const usdcEl = document.querySelector("#walletInfo .bal:last-of-type");
-
-    // querySelectorが確実に当たらないケースに備えてconnectWallet再描画で代替
-    const walletEl = document.getElementById("walletInfo");
-    walletEl.innerHTML = `
-      <div class="addr">${currentAccount}</div>
-      <div style="margin-top:6px;display:flex;gap:20px">
-        <div><span style="color:var(--text-sub);font-size:11px">ETH</span><br><span class="bal">${eth}</span></div>
-        <div><span style="color:var(--text-sub);font-size:11px">USDC</span><br><span class="bal">${usdc}</span></div>
-      </div>
-      <button onclick="copyAddress('${currentAccount}')" style="width:auto;padding:5px 14px;margin-top:10px;font-size:11px">Copy Address</button>`;
-  } catch (_) {
-    // 残高更新失敗はサイレントスキップ（送金自体は成功している）
-  }
-}
-
-
 async function connectWallet() {
   if (typeof window.ethereum === "undefined") {
     showStatus("ウォレットが見つかりません。MetaMask などをインストールしてください", "error");
@@ -959,16 +779,6 @@ async function executeETH(toAddr, amount) {
     saveHistory({ type: "ETH", amount, hash: tx.hash });
     showStatus("ETH 送金完了: " + tx.hash, "ok");
 
-    // ── Phase 3: 後処理 ──
-    clearForm("ETH");
-    await refreshBalances();
-    showToast({
-      type:   "ok",
-      title:  "ETH 送金完了",
-      msg:    `${amount} ETH → ${toAddr.slice(0,8)}…${toAddr.slice(-6)}`,
-      txHash: tx.hash,
-    });
-
   } catch (e) {
     showStatus(friendlyError(e), "error");
   } finally {
@@ -999,16 +809,6 @@ async function executeUSDC(toAddr, amount) {
 
     saveHistory({ type: "USDC", amount, hash: tx.hash });
     showStatus("USDC 送金完了: " + tx.hash, "ok");
-
-    // ── Phase 3: 後処理 ──
-    clearForm("USDC");
-    await refreshBalances();
-    showToast({
-      type:   "ok",
-      title:  "USDC 送金完了",
-      msg:    `${amount} USDC → ${toAddr.slice(0,8)}…${toAddr.slice(-6)}`,
-      txHash: tx.hash,
-    });
 
   } catch (e) {
     showStatus(friendlyError(e), "error");
