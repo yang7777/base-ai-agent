@@ -80,6 +80,18 @@ Planned features:
 * Advanced portfolio dashboard
 * Base ecosystem integrations
 
+### Phase 3 – UX Improvements
+
+The user experience has been enhanced with several post-transaction improvements:
+
+* Automatic form reset after successful transfers
+* Automatic wallet balance refresh
+* Basescan transaction links
+* Toast notifications for transaction success
+* Secure external link handling using `noopener noreferrer`
+
+These improvements make transaction tracking easier and reduce the risk of accidental duplicate transfers.
+
 
 
 
