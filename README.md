@@ -92,6 +92,16 @@ The user experience has been enhanced with several post-transaction improvements
 
 These improvements make transaction tracking easier and reduce the risk of accidental duplicate transfers.
 
+Features
 
+✅ Wallet Connection
+✅ ETH Transfer
+✅ USDC Transfer
+✅ Security Validation
+✅ Base Chain Auto Switch
+✅ Confirm Modal
+✅ Transaction History
+✅ Toast Notifications
+✅ Address Book
 
 
