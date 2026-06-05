@@ -325,105 +325,6 @@ button.danger:hover:not(:disabled) {
 }
 
 /* ================================================================
-   PHASE 4: TRANSACTION HISTORY
-================================================================ */
-.tx-history-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-.tx-history-header h3 {
-  margin-bottom: 0;
-}
-#btnClearHistory {
-  width: auto;
-  padding: 4px 12px;
-  margin-top: 0;
-  font-size: 11px;
-  border-color: var(--border);
-  color: var(--text-sub);
-}
-#btnClearHistory:hover:not(:disabled) {
-  border-color: var(--danger);
-  color: var(--danger);
-  background: var(--danger-dim);
-}
-
-/* 空状態 */
-.tx-empty {
-  text-align: center;
-  padding: 24px 0 10px;
-  font-size: 12px;
-  color: #444;
-}
-
-/* 各トランザクション行 */
-.tx-item {
-  display: grid;
-  grid-template-columns: 40px 1fr auto;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border);
-  animation: txFadeIn 0.3s ease;
-}
-.tx-item:last-child { border-bottom: none; }
-@keyframes txFadeIn {
-  from { opacity: 0; transform: translateY(-6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* トークンアイコン */
-.tx-token-icon {
-  width: 36px; height: 36px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-.tx-token-icon.eth  { background: rgba(98,126,234,0.18); color: #8899ff; }
-.tx-token-icon.usdc { background: rgba(39,117,202,0.18); color: #5ea8ff; }
-
-/* メイン情報 */
-.tx-main { min-width: 0; }
-.tx-amount {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1.3;
-}
-.tx-to {
-  font-size: 11px;
-  color: var(--text-sub);
-  margin-top: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tx-date {
-  font-size: 10px;
-  color: #555;
-  margin-top: 3px;
-}
-
-/* Basescanリンク */
-.tx-link {
-  font-size: 11px;
-  color: var(--accent);
-  text-decoration: none;
-  white-space: nowrap;
-  border-bottom: 1px solid rgba(0,229,160,0.25);
-  padding-bottom: 1px;
-  transition: color 0.15s;
-  flex-shrink: 0;
-}
-.tx-link:hover { color: var(--accent-hover); }
-
-/* ================================================================
    TOAST NOTIFICATION
 ================================================================ */
 #toastContainer {
@@ -545,14 +446,9 @@ button.danger:hover:not(:disabled) {
   <div id="addressBook"></div>
 </div>
 
-<div class="card" id="txHistoryCard">
-  <div class="tx-history-header">
-    <h3 style="margin-bottom:0">Recent Transactions</h3>
-    <button id="btnClearHistory" onclick="clearTransactionHistory()" title="履歴を全件削除">Clear</button>
-  </div>
-  <div id="txHistoryList"></div>
-  <!-- 後方互換: 旧 id="history" を維持（saveHistory が参照） -->
-  <div id="history" style="display:none"></div>
+<div class="card">
+  <h3>Transaction History</h3>
+  <div id="history"></div>
 </div>
 
 <div class="card">
@@ -734,8 +630,22 @@ function validateAmount(amount, symbol) {
 }
 
 /* ================================================================
-   localStorage ヘルパー: アドレス帳
+   localStorage ヘルパー
 ================================================================ */
+function loadHistory() {
+  const h = JSON.parse(localStorage.getItem("txHistory") || "[]");
+  document.getElementById("history").innerHTML = h.reverse().map(x =>
+    `<div class='small'>${x.type}: ${x.amount}<br>${x.hash}</div><hr>`
+  ).join("");
+}
+
+function saveHistory(item) {
+  const h = JSON.parse(localStorage.getItem("txHistory") || "[]");
+  h.push(item);
+  localStorage.setItem("txHistory", JSON.stringify(h));
+  loadHistory();
+}
+
 function renderAddressBook() {
   const items = JSON.parse(localStorage.getItem("addressBook") || "[]");
   document.getElementById("addressBook").innerHTML = items.map((x, i) =>
@@ -759,146 +669,6 @@ function copyAddress(a) {
   navigator.clipboard.writeText(a);
   alert("Copied");
 }
-
-/* ================================================================
-   Phase 4: Transaction History
-================================================================ */
-
-/** LocalStorage キー */
-const TX_HISTORY_KEY = "txHistoryV2";
-
-/** Basescan TX URL を生成 */
-function basescanUrl(hash) {
-  return "https://basescan.org/tx/" + hash;
-}
-
-/**
- * トランザクションを保存する。
- * 拡張しやすいよう token / amount / to / hash / timestamp を必須フィールドとする。
- * 将来トークンを追加する場合は token フィールドに値を増やすだけでよい。
- *
- * @param {{ token: string, amount: string, to: string, hash: string }} entry
- */
-function saveTransaction(entry) {
-  const history = loadTransactionHistory();
-  const record = {
-    token:     entry.token,
-    amount:    entry.amount,
-    to:        entry.to,
-    hash:      entry.hash,
-    timestamp: entry.timestamp || Date.now(),
-  };
-  history.push(record);
-  localStorage.setItem(TX_HISTORY_KEY, JSON.stringify(history));
-}
-
-/**
- * LocalStorage から全履歴を読み込んで返す。
- * 旧フォーマット (txHistory) があれば自動マイグレーションする。
- * @returns {Array}
- */
-function loadTransactionHistory() {
-  // ── 旧データのマイグレーション ──
-  const legacy = localStorage.getItem("txHistory");
-  if (legacy) {
-    try {
-      const old = JSON.parse(legacy);
-      const migrated = old.map(x => ({
-        token:     x.type  || "?",
-        amount:    x.amount || "",
-        to:        x.to    || "",
-        hash:      x.hash  || "",
-        timestamp: x.timestamp || 0,
-      }));
-      // 新キーに保存して旧キーを削除
-      const existing = JSON.parse(localStorage.getItem(TX_HISTORY_KEY) || "[]");
-      localStorage.setItem(TX_HISTORY_KEY, JSON.stringify([...existing, ...migrated]));
-      localStorage.removeItem("txHistory");
-    } catch (_) { /* マイグレーション失敗はスキップ */ }
-  }
-
-  return JSON.parse(localStorage.getItem(TX_HISTORY_KEY) || "[]");
-}
-
-/**
- * 履歴UIを再描画する。新しい順（降順）に表示。
- */
-function renderTransactionHistory() {
-  const list = document.getElementById("txHistoryList");
-  if (!list) return;
-
-  const history = loadTransactionHistory();
-  if (history.length === 0) {
-    list.innerHTML = '<div class="tx-empty">送金履歴がありません</div>';
-    return;
-  }
-
-  // 新しい順
-  const sorted = [...history].reverse();
-
-  list.innerHTML = sorted.map(tx => {
-    const tokenLower = (tx.token || "").toLowerCase();
-    const shortTo    = tx.to
-      ? tx.to.slice(0, 8) + "…" + tx.to.slice(-6)
-      : "—";
-    const dateStr    = tx.timestamp
-      ? new Date(tx.timestamp).toLocaleString("ja-JP", {
-          year: "numeric", month: "2-digit", day: "2-digit",
-          hour: "2-digit", minute: "2-digit",
-        })
-      : "—";
-    const iconChar   = tokenLower === "eth" ? "Ξ" : "$";
-    const url        = tx.hash ? basescanUrl(tx.hash) : "#";
-
-    return `
-      <div class="tx-item">
-        <div class="tx-token-icon ${tokenLower}">${iconChar}</div>
-        <div class="tx-main">
-          <div class="tx-amount">${tx.amount} ${tx.token}</div>
-          <div class="tx-to">To: ${shortTo}</div>
-          <div class="tx-date">${dateStr}</div>
-        </div>
-        <a class="tx-link"
-           href="${url}"
-           target="_blank"
-           rel="noopener noreferrer">Basescan ↗</a>
-      </div>`;
-  }).join("");
-}
-
-/**
- * 送金成功時に呼ぶ。保存→UI更新を一括実行。
- * @param {{ token: string, amount: string, to: string, hash: string }} entry
- */
-function addTransactionToHistory(entry) {
-  saveTransaction({ ...entry, timestamp: Date.now() });
-  renderTransactionHistory();
-}
-
-/**
- * 履歴を全件削除（確認ダイアログあり）。
- */
-function clearTransactionHistory() {
-  if (!confirm("送金履歴をすべて削除しますか？")) return;
-  localStorage.removeItem(TX_HISTORY_KEY);
-  renderTransactionHistory();
-}
-
-/* ── 後方互換エイリアス（Phase 1〜3 の saveHistory / loadHistory を維持） ──
-   既存コードが saveHistory({type, amount, hash}) を呼んでいても動作する。 */
-function saveHistory(item) {
-  addTransactionToHistory({
-    token:  item.type   || "?",
-    amount: item.amount || "",
-    to:     item.to     || "",
-    hash:   item.hash   || "",
-  });
-}
-function loadHistory() {
-  renderTransactionHistory();
-}
-
-
 
 /* ================================================================
    Phase 3: Toast Notification
@@ -1186,6 +956,7 @@ async function executeETH(toAddr, amount) {
     showStatus("送信中... TX: " + tx.hash, "info");
     await tx.wait();
 
+    saveHistory({ type: "ETH", amount, hash: tx.hash });
     showStatus("ETH 送金完了: " + tx.hash, "ok");
 
     // ── Phase 3: 後処理 ──
@@ -1197,8 +968,6 @@ async function executeETH(toAddr, amount) {
       msg:    `${amount} ETH → ${toAddr.slice(0,8)}…${toAddr.slice(-6)}`,
       txHash: tx.hash,
     });
-    // ── Phase 4: 履歴保存（1件のみ） ──
-    addTransactionToHistory({ token: "ETH", amount, to: toAddr, hash: tx.hash });
 
   } catch (e) {
     showStatus(friendlyError(e), "error");
@@ -1228,6 +997,7 @@ async function executeUSDC(toAddr, amount) {
     showStatus("送信中... TX: " + tx.hash, "info");
     await tx.wait();
 
+    saveHistory({ type: "USDC", amount, hash: tx.hash });
     showStatus("USDC 送金完了: " + tx.hash, "ok");
 
     // ── Phase 3: 後処理 ──
@@ -1239,8 +1009,6 @@ async function executeUSDC(toAddr, amount) {
       msg:    `${amount} USDC → ${toAddr.slice(0,8)}…${toAddr.slice(-6)}`,
       txHash: tx.hash,
     });
-    // ── Phase 4: 履歴保存（1件のみ） ──
-    addTransactionToHistory({ token: "USDC", amount, to: toAddr, hash: tx.hash });
 
   } catch (e) {
     showStatus(friendlyError(e), "error");
@@ -1269,8 +1037,7 @@ async function sendMessage() {
 /* ================================================================
    初期化
 ================================================================ */
-loadHistory();           // 後方互換エイリアス → renderTransactionHistory()
-renderTransactionHistory();
+loadHistory();
 renderAddressBook();
 </script>
 </body>

@@ -1186,6 +1186,7 @@ async function executeETH(toAddr, amount) {
     showStatus("送信中... TX: " + tx.hash, "info");
     await tx.wait();
 
+    saveHistory({ type: "ETH", amount, hash: tx.hash });
     showStatus("ETH 送金完了: " + tx.hash, "ok");
 
     // ── Phase 3: 後処理 ──
@@ -1197,7 +1198,7 @@ async function executeETH(toAddr, amount) {
       msg:    `${amount} ETH → ${toAddr.slice(0,8)}…${toAddr.slice(-6)}`,
       txHash: tx.hash,
     });
-    // ── Phase 4: 履歴保存（1件のみ） ──
+    // ── Phase 4: 履歴保存（to フィールドを追加） ──
     addTransactionToHistory({ token: "ETH", amount, to: toAddr, hash: tx.hash });
 
   } catch (e) {
@@ -1228,6 +1229,7 @@ async function executeUSDC(toAddr, amount) {
     showStatus("送信中... TX: " + tx.hash, "info");
     await tx.wait();
 
+    saveHistory({ type: "USDC", amount, hash: tx.hash });
     showStatus("USDC 送金完了: " + tx.hash, "ok");
 
     // ── Phase 3: 後処理 ──
@@ -1239,7 +1241,7 @@ async function executeUSDC(toAddr, amount) {
       msg:    `${amount} USDC → ${toAddr.slice(0,8)}…${toAddr.slice(-6)}`,
       txHash: tx.hash,
     });
-    // ── Phase 4: 履歴保存（1件のみ） ──
+    // ── Phase 4: 履歴保存（to フィールドを追加） ──
     addTransactionToHistory({ token: "USDC", amount, to: toAddr, hash: tx.hash });
 
   } catch (e) {
